@@ -3447,7 +3447,7 @@ function runModCode(entry) {
         showMessage(text) {
             if (run.dead) return;
             showMessage(String(text).slice(0, 90));
-        }
+        },
 
         // Read-only snapshot for visual mods such as 3D-Velora.
         // Values are copied so mods cannot mutate live game state.
