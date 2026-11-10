@@ -1569,6 +1569,8 @@ async function startGame(newGame = false, asEndless = false) {
         // is generated, so their world-generation eavesdroppers work.
         await waitModsReady();
 
+        if (pendingRebuild) rebuildMods();
+
         stopLoop();
         gameStarted = false;
         finishingLevel = false;
@@ -1638,7 +1640,7 @@ async function startGame(newGame = false, asEndless = false) {
         updateCamera();
         updateHUD();
 
-        frameId = requestAnimationFrame(gameLoop);
+        startLoop();
 
         showMessage(
             endless
@@ -2576,41 +2578,53 @@ function drawParticles() {
 // HUD
 // ==========================================
 
+const hudCache = new WeakMap();
+
+function setHudText(element, text) {
+    if (!element || hudCache.get(element) === text) return;
+
+    hudCache.set(element, text);
+    element.textContent = text;
+}
+
+function setHudWidth(element, percent) {
+    if (!element) return;
+
+    const value = Math.round(clamp(percent, 0, 100)) + "%";
+
+    if (hudCache.get(element) === value) return;
+
+    hudCache.set(element, value);
+    element.style.width = value;
+}
+
+let currentLevelLabelEl = null;
+
 function updateHUD() {
-    if (crystalCount) {
-        crystalCount.textContent = `${crystalsCollected} / ${MAX_CRYSTALS}`;
+    setHudText(crystalCount, `${crystalsCollected} / ${MAX_CRYSTALS}`);
+    setHudWidth(healthBar, player.health);
+    setHudWidth(energyBar, player.energy);
+
+    setHudText(
+        cooldownElement,
+        player.shockCooldown > 0
+            ? player.shockCooldown.toFixed(1) + "s"
+            : "READY"
+    );
+
+    setHudText(coinsDisplay, `🪙 ${coins}`);
+    setHudText(levelTimerDisplay, formatTime(levelElapsed));
+
+    if (!currentLevelLabelEl) {
+        currentLevelLabelEl = document.getElementById("currentLevelLabel");
     }
 
-    if (healthBar) {
-        healthBar.style.width = clamp(player.health, 0, 100) + "%";
-    }
-
-    if (energyBar) {
-        energyBar.style.width = clamp(player.energy, 0, 100) + "%";
-    }
-
-    if (cooldownElement) {
-        cooldownElement.textContent =
-            player.shockCooldown > 0
-                ? player.shockCooldown.toFixed(1) + "s"
-                : "READY";
-    }
-
-    if (coinsDisplay) {
-        coinsDisplay.textContent = `🪙 ${coins}`;
-    }
-
-    if (levelTimerDisplay) {
-        levelTimerDisplay.textContent = formatTime(levelElapsed);
-    }
-
-    const levelLabel = document.getElementById("currentLevelLabel");
-
-    if (levelLabel) {
-        levelLabel.textContent = endless
+    setHudText(
+        currentLevelLabelEl,
+        endless
             ? `ZONE ${endlessZone} · ${endlessTotal} MEMORIES`
-            : `${currentLevel} — ${getLevelConfig().name}`;
-    }
+            : `${currentLevel} — ${getLevelConfig().name}`
+    );
 }
 
 // ==========================================
@@ -2787,6 +2801,8 @@ function gameOver() {
 // ==========================================
 
 function showMenu() {
+    if (pendingRebuild && !gameStarted) rebuildMods();
+
     setVisible(menu, true);
     setVisible(gameUI, false);
     setVisible(winScreen, false);
@@ -2854,17 +2870,23 @@ function render() {
 // GAME LOOP
 // ==========================================
 
+let loopToken = 0;
+
+// Invalidates the running loop. A stale callback sees the token change
+// and ends itself — no cancelAnimationFrame needed, which mods hook and
+// which could previously leave two loops running at once.
 function stopLoop() {
-    if (frameId !== null) {
-        cancelAnimationFrame(frameId);
-        frameId = null;
-    }
+    loopToken++;
+    frameId = null;
 }
 
-function gameLoop(timestamp) {
-    frameId = null;
+function startLoop() {
+    const token = ++loopToken;
+    frameId = requestAnimationFrame(ts => gameLoop(ts, token));
+}
 
-    if (!gameStarted) return;
+function gameLoop(timestamp, token) {
+    if (token !== loopToken || !gameStarted) return;
 
     const dt = clamp((timestamp - lastTime) / 1000, 0, 0.04);
 
@@ -2873,8 +2895,8 @@ function gameLoop(timestamp) {
     update(dt);
     render();
 
-    if (gameStarted) {
-        frameId = requestAnimationFrame(gameLoop);
+    if (gameStarted && token === loopToken) {
+        frameId = requestAnimationFrame(ts => gameLoop(ts, token));
     }
 }
 
@@ -3026,7 +3048,82 @@ async function getVeloraSave() {
     }
 }
 
+// -------- pristine globals --------
+// Mods work by replacing Math.*, requestAnimationFrame and the canvas
+// drawing methods. They never put the originals back, which is why
+// switching a mod off did nothing and why hooks piled up and froze the
+// game. The client keeps the originals from before any mod ran and
+// restores them whenever the mod set changes.
+
+const PRISTINE = (() => {
+    const proto = CanvasRenderingContext2D.prototype;
+    const descriptors = {};
+
+    for (const name of Object.getOwnPropertyNames(proto)) {
+        descriptors[name] = Object.getOwnPropertyDescriptor(proto, name);
+    }
+
+    return {
+        proto,
+        descriptors,
+        math: {
+            min: Math.min,
+            max: Math.max,
+            cos: Math.cos,
+            sin: Math.sin,
+            random: Math.random
+        },
+        raf: window.requestAnimationFrame,
+        caf: window.cancelAnimationFrame
+    };
+})();
+
+function restoreGlobals() {
+    for (const name of Object.keys(PRISTINE.math)) {
+        if (Math[name] !== PRISTINE.math[name]) {
+            Math[name] = PRISTINE.math[name];
+        }
+    }
+
+    if (window.requestAnimationFrame !== PRISTINE.raf) {
+        window.requestAnimationFrame = PRISTINE.raf;
+    }
+
+    if (window.cancelAnimationFrame !== PRISTINE.caf) {
+        window.cancelAnimationFrame = PRISTINE.caf;
+    }
+
+    const proto = PRISTINE.proto;
+
+    for (const name of Object.getOwnPropertyNames(proto)) {
+        const original = PRISTINE.descriptors[name];
+
+        if (!original) {
+            try { delete proto[name]; } catch (error) {}
+            continue;
+        }
+
+        const current = Object.getOwnPropertyDescriptor(proto, name);
+
+        if (
+            !current ||
+            current.value !== original.value ||
+            current.get !== original.get ||
+            current.set !== original.set
+        ) {
+            try {
+                Object.defineProperty(proto, name, original);
+            } catch (error) {
+                console.warn("Could not restore canvas." + name, error);
+            }
+        }
+    }
+}
+
 // -------- mod runtime --------
+
+let rebuildingMods = false;
+let pendingRebuild = false;
 
 function notifyMod(entry) {
     if (!entry.listeners.length) return;
@@ -3069,7 +3166,16 @@ function modDocRef(modId) {
 }
 
 function runModCode(entry) {
-    // The API handed to the mod: a small, explicit surface.
+    // Every run gets its own token. Once the run is torn down, anything
+    // the old code still holds (timers, callbacks) can no longer reach
+    // the client: isActive() turns false and the API stops working.
+    const run = { dead: false };
+    entry.run = run;
+
+    const alive = () => {
+        if (run.dead) throw new Error("This mod is switched off.");
+    };
+
     const api = {
         clientVersion: CLIENT_VERSION,
 
@@ -3081,10 +3187,10 @@ function runModCode(entry) {
             description: entry.description
         },
 
-        isActive: () => entry.enabled,
+        isActive: () => !run.dead && entry.enabled,
 
         defineSettings(schema) {
-            if (!Array.isArray(schema)) return;
+            if (run.dead || !Array.isArray(schema)) return;
 
             entry.schema = schema;
 
@@ -3094,7 +3200,7 @@ function runModCode(entry) {
                 }
             }
 
-            renderMods();
+            if (!rebuildingMods) renderMods();
         },
 
         get(key) {
@@ -3105,28 +3211,31 @@ function runModCode(entry) {
         },
 
         set(key, value) {
+            if (run.dead) return;
+
             entry.settings[key] = value;
             persistModDoc(entry);
             notifyMod(entry);
         },
 
         onSettingsChange(fn) {
-            if (typeof fn === "function") entry.listeners.push(fn);
+            if (!run.dead && typeof fn === "function") entry.listeners.push(fn);
         },
 
         onAction(name, fn) {
-            entry.actions[name] = fn;
+            if (!run.dead) entry.actions[name] = fn;
         },
 
         onDestroy(fn) {
             if (typeof fn === "function") entry.destroyers.push(fn);
         },
 
-        addCoins(delta) { return addCoinsToVelora(delta); },
-        setCoins(total) { return setCoinsToVelora(total); },
-        getSave() { return getVeloraSave(); },
+        addCoins(delta) { alive(); return addCoinsToVelora(delta); },
+        setCoins(total) { alive(); return setCoinsToVelora(total); },
+        getSave() { alive(); return getVeloraSave(); },
 
         showMessage(text) {
+            if (run.dead) return;
             showMessage(String(text).slice(0, 90));
         }
     };
@@ -3134,18 +3243,73 @@ function runModCode(entry) {
     entry.api = api;
 
     try {
-        // Mods run in the page world, once per session.
-        // A crashing mod can never take the client down.
         new Function("VClient", entry.code)(api);
     } catch (error) {
         console.error("Mod '" + entry.id + "' crashed on load:", error);
         setModsStatus("Mod '" + entry.name + "' crashed on load.", true);
+        teardownMod(entry);
     }
 }
 
+// Stops one mod: runs its cleanup and cuts it off from the client.
+function teardownMod(entry) {
+    if (entry.run) entry.run.dead = true;
+
+    const destroyers = entry.destroyers;
+
+    entry.destroyers = [];
+    entry.listeners = [];
+    entry.actions = {};
+    entry.schema = [];
+    entry.api = null;
+    entry.run = null;
+
+    for (const fn of destroyers) {
+        try { fn(); } catch (error) {
+            console.error("Mod '" + entry.id + "' cleanup error:", error);
+        }
+    }
+}
+
+// Rebuilds the whole mod set from scratch: stop everything, put the
+// original game functions back, then run only the enabled mods.
+function rebuildMods() {
+    pendingRebuild = false;
+    rebuildingMods = true;
+
+    try {
+        for (const entry of modEntries.values()) teardownMod(entry);
+
+        restoreGlobals();
+
+        const ordered = Array.from(modEntries.values())
+            .sort((a, b) => (a.id < b.id ? -1 : 1));
+
+        for (const entry of ordered) {
+            if (entry.enabled) runModCode(entry);
+        }
+    } finally {
+        rebuildingMods = false;
+    }
+
+    renderMods();
+}
+
+// Never swap hooks under a running game — wait for the menu.
+function requestModRebuild() {
+    if (gameStarted) {
+        pendingRebuild = true;
+        return;
+    }
+
+    rebuildMods();
+}
+
+// Returns true when the running mod set has to be rebuilt.
 function upsertModEntry(snapshotDoc) {
     const data = snapshotDoc.data() || {};
     const id = snapshotDoc.id;
+    const echo = snapshotDoc.metadata.hasPendingWrites;
 
     let entry = modEntries.get(id);
 
@@ -3164,24 +3328,36 @@ function upsertModEntry(snapshotDoc) {
             listeners: [],
             destroyers: [],
             persistTimer: null,
-            api: null
+            api: null,
+            run: null
         };
 
         modEntries.set(id, entry);
 
-        // First time this session — run the mod code.
-        runModCode(entry);
-    } else {
-        // The mod was re-uploaded with new code: tear the old one down
-        // and run the new version.
-        if (typeof data.code === "string" && data.code !== entry.code) {
-            removeModEntry(id, false);
-            upsertModEntry(snapshotDoc);
-            return;
-        }
+        return true;
+    }
 
-        // Live sync (another device changed settings/enabled).
-        entry.enabled = !!data.enabled;
+    let rebuild = false;
+
+    entry.name = data.name || entry.name;
+    entry.version = data.version || entry.version;
+    entry.author = data.author || "";
+    entry.description = data.description || "";
+
+    if (typeof data.code === "string" && data.code !== entry.code) {
+        entry.code = data.code;
+        rebuild = true;
+    }
+
+    // Our own writes echo back with pending writes — the local state is
+    // already right, so only trust snapshots that came from elsewhere.
+    if (!echo) {
+        const enabled = !!data.enabled;
+
+        if (enabled !== entry.enabled) {
+            entry.enabled = enabled;
+            rebuild = true;
+        }
 
         const incoming = data.settings || {};
         let changed = false;
@@ -3193,8 +3369,10 @@ function upsertModEntry(snapshotDoc) {
             }
         }
 
-        if (changed) notifyMod(entry);
+        if (changed && !rebuild) notifyMod(entry);
     }
+
+    return rebuild;
 }
 
 function removeModEntry(id, deleteDocToo) {
@@ -3202,13 +3380,7 @@ function removeModEntry(id, deleteDocToo) {
     if (!entry) return;
 
     clearTimeout(entry.persistTimer);
-
-    for (const fn of entry.destroyers) {
-        try { fn(); } catch (error) {
-            console.error("Mod '" + id + "' cleanup error:", error);
-        }
-    }
-
+    teardownMod(entry);
     modEntries.delete(id);
 
     if (deleteDocToo && vclientUser) {
@@ -3217,6 +3389,8 @@ function removeModEntry(id, deleteDocToo) {
             setModsStatus("Could not delete mod: " + error.message, true);
         });
     }
+
+    requestModRebuild();
 }
 
 function unloadMods() {
@@ -3225,10 +3399,13 @@ function unloadMods() {
         modsUnsubscribe = null;
     }
 
-    for (const id of Array.from(modEntries.keys())) {
-        removeModEntry(id, false);
+    for (const entry of modEntries.values()) {
+        clearTimeout(entry.persistTimer);
+        teardownMod(entry);
     }
 
+    modEntries.clear();
+    restoreGlobals();
     renderMods();
 }
 
@@ -3254,35 +3431,32 @@ function loadMods(user) {
         modsUnsubscribe = onSnapshot(
             collection(clientDb, "users", user.uid, "mods"),
             snapshot => {
-                let needsRender = false;
+                let rebuild = false;
+                let rerender = false;
 
                 snapshot.docChanges().forEach(change => {
                     if (change.type === "removed") {
                         removeModEntry(change.doc.id, false);
-                        needsRender = true;
-                    } else {
-                        const known = modEntries.get(change.doc.id);
-                        const before = known ? known.enabled : null;
-                        const beforeCode = known ? known.code : null;
+                        return;
+                    }
 
-                        upsertModEntry(change.doc);
+                    const known = modEntries.has(change.doc.id);
 
-                        const now = modEntries.get(change.doc.id);
+                    if (upsertModEntry(change.doc)) rebuild = true;
 
-                        // Our own settings edits echo back here — don't
-                        // rebuild the panel under the user's cursor.
-                        if (
-                            !known || !now ||
-                            now.enabled !== before ||
-                            now.code !== beforeCode ||
-                            !change.doc.metadata.hasPendingWrites
-                        ) {
-                            needsRender = true;
-                        }
+                    // Don't rebuild the panel under the user's cursor
+                    // for the echo of their own settings edits.
+                    if (!known || !change.doc.metadata.hasPendingWrites) {
+                        rerender = true;
                     }
                 });
 
-                if (needsRender) renderMods();
+                if (rebuild) {
+                    requestModRebuild();
+                } else if (rerender) {
+                    renderMods();
+                }
+
                 markLoaded();
             },
             error => {
@@ -3352,7 +3526,8 @@ function renderMods() {
         desc.className = "mod-desc";
         desc.textContent =
             (entry.description || "") +
-            (entry.author ? " — by " + entry.author : "");
+            (entry.author ? " — by " + entry.author : "") +
+            (entry.enabled ? "" : " — OFF (ENABLE TO CONFIGURE)");
 
         // ---- settings ----
         const settingsBox = document.createElement("div");
@@ -3466,7 +3641,10 @@ function renderMods() {
             row.classList.toggle("enabled", entry.enabled);
 
             persistModDoc(entry);
-            notifyMod(entry);
+
+            // Off means off: stop the mod, restore the original game
+            // functions and re-run only the mods that are still on.
+            requestModRebuild();
         });
 
         del.addEventListener("click", () => {
