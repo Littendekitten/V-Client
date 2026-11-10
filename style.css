@@ -555,6 +555,28 @@ button:disabled {
     color: var(--muted);
 }
 
+.mod-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.mod-download {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    background: rgba(10, 40, 50, 0.6);
+    border: 1px solid rgba(100, 230, 255, 0.4);
+    border-radius: 4px;
+    color: #bfeaff;
+    font-size: 10px;
+    cursor: pointer;
+}
+
+.mod-download:hover {
+    border-color: #64e6ff;
+    background: rgba(15, 60, 75, 0.7);
+}
+
 .mod-delete {
     flex-shrink: 0;
     padding: 4px 10px;
