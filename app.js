@@ -1,8 +1,9 @@
 // ==========================================
 // V-CLIENT — CLIENT FOR VÉLORA
 // THE WORLD THAT LISTENS
-// Connects directly to the official VÉLORA
-// Firebase servers (project: velora-5246f)
+// V-CLIENT ACCOUNTS: everything (sign-in,
+// saves, coins, leaderboard) runs on YOUR
+// Firebase project "kitacat-v-client".
 // ==========================================
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
@@ -36,25 +37,24 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 // ==========================================
-// FIREBASE — OFFICIAL VÉLORA SERVERS
-// (Same project as the original game,
-//  so progress is shared with VÉLORA)
+// FIREBASE — V-CLIENT ACCOUNT SYSTEM
+// (kitacat-v-client, your own project)
 // ==========================================
 
 const firebaseConfig = {
-    apiKey: "AIzaSyC8PkUPS4X9d4VLyHGnkK8WW4MUDcdus6A",
-    authDomain: "velora-5246f.firebaseapp.com",
-    databaseURL: "https://velora-5246f-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "velora-5246f",
-    storageBucket: "velora-5246f.firebasestorage.app",
-    messagingSenderId: "688498933492",
-    appId: "1:688498933492:web:b28f6aea2a6f5a9ff868a1",
-    measurementId: "G-4855RPPXEF"
+    apiKey: "AIzaSyDpQBKWV3chhR1iU1ZVeYrlVLR_dWeK1T0",
+    authDomain: "kitacat-v-client.firebaseapp.com",
+    projectId: "kitacat-v-client",
+    storageBucket: "kitacat-v-client.firebasestorage.app",
+    messagingSenderId: "836864858858",
+    appId: "1:836864858858:web:01a86c24ab6e7931eb9593",
+    measurementId: "G-M1WRT7WKDQ"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+
 const provider = new GoogleAuthProvider();
 
 provider.setCustomParameters({ prompt: "select_account" });
@@ -116,13 +116,12 @@ function setVisible(element, visible) {
 }
 
 // ==========================================
-// V-CLIENT: SERVER CONNECTION + STATUS
+// V-CLIENT: CLOUD CONNECTION + STATUS
 // ==========================================
 
-const CLIENT_VERSION = "1.0.0";
-const CLIENT_SERVER_NAME = "VELORA-5246F · EU-WEST";
+const CLIENT_VERSION = "1.2.0";
 
-let clientReady = false;     // first successful server check done
+let clientReady = false;     // first successful cloud check done
 let clientOnline = false;
 
 function withTimeout(promise, ms) {
@@ -177,7 +176,7 @@ function setServerStatus(state, ping) {
     }
 }
 
-async function connectToVelora() {
+async function checkVClientCloud() {
     if (!clientReady) {
         setServerStatus("connecting");
     }
@@ -185,8 +184,8 @@ async function connectToVelora() {
     const started = performance.now();
 
     try {
-        // Public read on /users is allowed by the VÉLORA rules:
-        // this is our handshake with the official servers.
+        // Public read on /users is allowed by the V-Client rules:
+        // this is our handshake with the V-Client cloud.
         await withTimeout(
             getDocs(query(collection(db, "users"), limit(1))),
             10000
@@ -206,18 +205,18 @@ async function connectToVelora() {
 
             console.log(
                 "V-CLIENT v" + CLIENT_VERSION +
-                " — connected to the official VÉLORA servers (" + ping + " ms)"
+                " — connected to the V-Client cloud (" + ping + " ms)"
             );
         }
     } catch (error) {
-        console.error("V-CLIENT connection error:", error);
+        console.error("V-CLIENT cloud connection error:", error);
 
         setServerStatus("offline");
 
         if (!clientReady) {
             if (connectStatusText) {
                 connectStatusText.textContent =
-                    "COULD NOT REACH VELORA SERVERS — CHECK YOUR CONNECTION";
+                    "COULD NOT REACH THE V-CLIENT CLOUD — CHECK YOUR CONNECTION";
             }
 
             setVisible(retryButton, true);
@@ -246,10 +245,10 @@ retryButton?.addEventListener("click", () => {
     setVisible(continueButton, false);
 
     if (connectStatusText) {
-        connectStatusText.textContent = "CONNECTING TO VELORA SERVERS...";
+        connectStatusText.textContent = "CONNECTING TO THE V-CLIENT CLOUD...";
     }
 
-    connectToVelora();
+    checkVClientCloud();
 });
 
 continueButton?.addEventListener("click", () => {
@@ -263,7 +262,7 @@ setInterval(() => {
         return;
     }
 
-    connectToVelora();
+    checkVClientCloud();
 }, 30000);
 
 // Refresh explorer count now and then
@@ -625,14 +624,15 @@ let coins = 0;
 let keys = {};
 
 // ==========================================
-// GOOGLE LOGIN
+// V-CLIENT ACCOUNT — GOOGLE SIGN-IN
+// (runs entirely on kitacat-v-client)
 // ==========================================
 
 function resetGoogleButton() {
     if (!googleButton) return;
 
     googleButton.disabled = false;
-    googleButton.textContent = "SIGN IN WITH GOOGLE";
+    googleButton.textContent = "SIGN IN WITH V-CLIENT";
 }
 
 const LOGIN_ERRORS = {
@@ -640,7 +640,9 @@ const LOGIN_ERRORS = {
     "auth/cancelled-popup-request": "Sign-in was cancelled.",
     "auth/popup-blocked": "Your browser blocked the sign-in popup.",
     "auth/network-request-failed": "Network error. Check your connection.",
-    "auth/unauthorized-domain": "This domain is not authorized in Firebase."
+    "auth/unauthorized-domain": "This domain is not authorized in the V-Client Firebase settings.",
+    "auth/operation-not-allowed": "Google sign-in is not enabled for kitacat-v-client yet.",
+    "auth/invalid-credential": "The login credential was rejected. Try again."
 };
 
 async function loginWithGoogle() {
@@ -650,7 +652,7 @@ async function loginWithGoogle() {
     }
 
     if (loginStatus) {
-        loginStatus.textContent = "Opening Google login...";
+        loginStatus.textContent = "Opening V-Client sign-in...";
     }
 
     try {
@@ -659,7 +661,7 @@ async function loginWithGoogle() {
         if (loginStatus) loginStatus.textContent = "";
 
     } catch (error) {
-        console.error("Google login error:", error);
+        console.error("V-Client login error:", error);
 
         if (loginStatus) {
             loginStatus.textContent =
@@ -696,7 +698,7 @@ async function logout() {
 logoutButton?.addEventListener("click", logout);
 
 // ==========================================
-// AUTH STATE
+// AUTH STATE — V-CLIENT ACCOUNT
 // ==========================================
 
 onAuthStateChanged(auth, async user => {
@@ -709,7 +711,7 @@ onAuthStateChanged(auth, async user => {
         resetGoogleButton();
 
         if (playerName) {
-            playerName.textContent = user.displayName || "VÉLORA Player";
+            playerName.textContent = user.displayName || "V-Client Explorer";
         }
 
         if (playerEmail) {
@@ -768,7 +770,7 @@ onAuthStateChanged(auth, async user => {
 });
 
 // ==========================================
-// FIRESTORE PLAYER PROFILE
+// FIRESTORE PLAYER PROFILE (V-Client cloud)
 // ==========================================
 
 function publicUserRef(uid) {
@@ -785,7 +787,7 @@ async function savePublicProfile(user) {
         const data = exists ? snapshot.data() : {};
 
         const profileData = {
-            displayName: user.displayName || "VÉLORA Player",
+            displayName: user.displayName || "V-Client Explorer",
             photoURL: user.photoURL || "",
             updatedAt: serverTimestamp()
         };
@@ -818,7 +820,7 @@ async function savePublicProfile(user) {
 
         if (loginStatus) {
             loginStatus.textContent =
-                "Could not load your profile: " + error.message;
+                "Could not load your V-Client account: " + error.message;
         }
     }
 }
@@ -870,7 +872,7 @@ function listenToPlayers() {
 
                 const name = document.createElement("span");
                 name.className = "leaderboard-name";
-                name.textContent = data.displayName || "VÉLORA Player";
+                name.textContent = data.displayName || "V-Client Explorer";
 
                 const amount = document.createElement("span");
                 amount.className = "leaderboard-coins";
@@ -1044,7 +1046,7 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 // ==========================================
-// FIRESTORE SAVE SYSTEM
+// FIRESTORE SAVE SYSTEM (V-Client cloud)
 // ==========================================
 
 function makeSaveData() {
@@ -1087,7 +1089,7 @@ async function clearSave() {
     if (!playerUID || endless) return;
 
     try {
-        localStorage.removeItem("velora_backup_" + playerUID);
+        localStorage.removeItem("vclient_backup_" + playerUID);
     } catch (error) {}
 
     try {
@@ -1117,7 +1119,7 @@ async function clearSave() {
 function readBackup() {
     if (!playerUID) return null;
 
-    const key = "velora_backup_" + playerUID;
+    const key = "vclient_backup_" + playerUID;
 
     try {
         const raw = localStorage.getItem(key);
@@ -1729,7 +1731,7 @@ function updateEnemies(dt) {
 }
 
 // ==========================================
-// CRYSTALS + 10 COINS
+// CRYSTALS + COINS
 // ==========================================
 
 async function updateCrystals() {
@@ -2633,7 +2635,7 @@ window.addEventListener("beforeunload", () => {
 
     try {
         localStorage.setItem(
-            "velora_backup_" + playerUID,
+            "vclient_backup_" + playerUID,
             JSON.stringify(makeSaveData())
         );
     } catch (error) {
@@ -2719,7 +2721,10 @@ if (newGameButton) {
 updateLevelSelector();
 updateHUD();
 
-// V-CLIENT: reach out and shake hands with the VÉLORA servers
-connectToVelora();
+// V-CLIENT: shake hands with the V-Client cloud
+checkVClientCloud();
 
-console.log("V-CLIENT v" + CLIENT_VERSION + " — client for VÉLORA loaded");
+console.log(
+    "V-CLIENT v" + CLIENT_VERSION +
+    " — V-Client accounts on kitacat-v-client · game: VÉLORA"
+);
