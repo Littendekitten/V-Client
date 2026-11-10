@@ -220,10 +220,21 @@ async function connectToVelora() {
     const started = performance.now();
 
     try {
-        await withTimeout(
-            getDocs(query(collection(db, "users"), limit(1))),
-            10000
-        );
+        try {
+            await withTimeout(
+                getDocs(query(collection(db, "users"), limit(1))),
+                10000
+            );
+        } catch (probeError) {
+            // Before the VÉLORA login the rules may refuse the read. A
+            // "permission-denied" answer still means the server replied,
+            // so the connection itself is fine.
+            if (probeError && probeError.code === "permission-denied") {
+                console.info("VÉLORA reachable (read needs login).");
+            } else {
+                throw probeError;
+            }
+        }
 
         const ping = Math.max(1, Math.round(performance.now() - started));
 
@@ -2938,9 +2949,8 @@ function parseModMeta(code, fileName) {
         meta.name = fileName.replace(/\.vclient$/i, "");
     }
 
-    if (!meta.id) {
-        meta.id = slugify(meta.name);
-    }
+    // Firestore document IDs cannot contain "/" etc. — always slugify.
+    meta.id = slugify(meta.id || meta.name);
 
     return meta;
 }
@@ -3162,6 +3172,14 @@ function upsertModEntry(snapshotDoc) {
         // First time this session — run the mod code.
         runModCode(entry);
     } else {
+        // The mod was re-uploaded with new code: tear the old one down
+        // and run the new version.
+        if (typeof data.code === "string" && data.code !== entry.code) {
+            removeModEntry(id, false);
+            upsertModEntry(snapshotDoc);
+            return;
+        }
+
         // Live sync (another device changed settings/enabled).
         entry.enabled = !!data.enabled;
 
@@ -3236,15 +3254,35 @@ function loadMods(user) {
         modsUnsubscribe = onSnapshot(
             collection(clientDb, "users", user.uid, "mods"),
             snapshot => {
+                let needsRender = false;
+
                 snapshot.docChanges().forEach(change => {
                     if (change.type === "removed") {
                         removeModEntry(change.doc.id, false);
+                        needsRender = true;
                     } else {
+                        const known = modEntries.get(change.doc.id);
+                        const before = known ? known.enabled : null;
+                        const beforeCode = known ? known.code : null;
+
                         upsertModEntry(change.doc);
+
+                        const now = modEntries.get(change.doc.id);
+
+                        // Our own settings edits echo back here — don't
+                        // rebuild the panel under the user's cursor.
+                        if (
+                            !known || !now ||
+                            now.enabled !== before ||
+                            now.code !== beforeCode ||
+                            !change.doc.metadata.hasPendingWrites
+                        ) {
+                            needsRender = true;
+                        }
                     }
                 });
 
-                renderMods();
+                if (needsRender) renderMods();
                 markLoaded();
             },
             error => {
@@ -3491,7 +3529,16 @@ async function uploadModFile(file) {
     setModsStatus("Uploading '" + meta.name + "'...", false);
 
     try {
-        await setDoc(modDocRef(meta.id), data);
+        const existing = await getDoc(modDocRef(meta.id));
+
+        if (existing.exists()) {
+            // Re-upload = update the mod, keep the player's settings.
+            const { settings, enabled, ...codeOnly } = data;
+            await setDoc(modDocRef(meta.id), codeOnly, { merge: true });
+        } else {
+            await setDoc(modDocRef(meta.id), data);
+        }
+
         setModsStatus(
             'Uploaded "' + meta.name + '" — stored in your V-Client cloud.', false
         );
