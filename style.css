@@ -384,6 +384,19 @@ button:disabled {
     text-align: center;
 }
 
+.auth-note {
+    padding: 9px 14px;
+    background: rgba(16, 14, 34, 0.5);
+    border: 1px solid rgba(130, 107, 255, 0.28);
+    border-radius: 6px;
+    color: #9d95c9;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    line-height: 1.9;
+    text-align: center;
+}
+
 #loggedInArea {
     width: 100%;
     display: flex;
@@ -394,6 +407,14 @@ button:disabled {
     background: rgba(12, 23, 43, 0.55);
     border: 1px solid var(--border);
     border-radius: 6px;
+}
+
+.account-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--green);
+    text-shadow: 0 0 10px rgba(88, 255, 168, 0.5);
 }
 
 #playerName {
