@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#03040b">
-    <meta name="description" content="V-CLIENT — community client for VÉLORA. Sign in with your V-Client account and explore the world that listens.">
+    <meta name="description" content="V-CLIENT — community client for VÉLORA. Sign in with your V-Client account, then connect to the official VÉLORA servers.">
 
     <title>V-CLIENT — VÉLORA Game Client</title>
 
@@ -25,7 +25,7 @@
             <div class="client-logo">V</div>
             <div class="client-brand-text">
                 <span class="client-name">V-CLIENT</span>
-                <span class="client-sub">VÉLORA GAME CLIENT · v1.2.0</span>
+                <span class="client-sub">VÉLORA GAME CLIENT · v1.3.0</span>
             </div>
         </div>
 
@@ -33,7 +33,7 @@
             <div class="server-panel">
                 <span id="serverDot" class="status-dot connecting"></span>
                 <div class="server-text">
-                    <span class="server-label">V-CLIENT CLOUD · KITACAT</span>
+                    <span class="server-label">VELORA-5246F · EU-WEST</span>
                     <span id="serverStatus">CONNECTING</span>
                 </div>
                 <span id="serverPing" class="server-ping"></span>
@@ -51,7 +51,7 @@
         <div class="overlay-content">
             <h2>V-CLIENT</h2>
             <div class="connect-spinner"></div>
-            <p id="connectStatus">CONNECTING TO THE V-CLIENT CLOUD...</p>
+            <p id="connectStatus">CONNECTING TO THE VÉLORA SERVERS...</p>
             <button id="retryButton" class="menu-button" hidden>RETRY CONNECTION</button>
             <button id="continueButton" class="menu-button" hidden>CONTINUE ANYWAY</button>
         </div>
@@ -74,14 +74,26 @@
             <!-- LOGIN AREA -->
             <div id="loginArea" class="auth-area">
 
-                <button id="googleButton" class="menu-button">
+                <div class="auth-steps">
+                    <span id="step1" class="auth-step active">1 · V-CLIENT</span>
+                    <span class="auth-arrow">→</span>
+                    <span id="step2" class="auth-step">2 · VÉLORA</span>
+                </div>
+
+                <button id="vclientButton" class="menu-button">
                     SIGN IN WITH V-CLIENT
+                </button>
+
+                <button id="veloraButton" class="menu-button velora-button" hidden>
+                    CONNECT TO VÉLORA
                 </button>
 
                 <div id="loginStatus" class="menu-message"></div>
 
                 <div class="auth-note">
-                    V-CLIENT ACCOUNT · POWERED BY GOOGLE SIGN-IN
+                    STEP 1 OPENS YOUR V-CLIENT ACCOUNT (GOOGLE · KITACAT-V-CLIENT) · STEP 2 LOGS YOU INTO THE
+                    OFFICIAL VÉLORA SERVERS THROUGH VÉLORA ITSELF — YOUR MEMORIES, COINS AND LEADERBOARD
+                    RANK BELONG TO YOUR REAL VÉLORA ACCOUNT
                 </div>
 
             </div>
@@ -89,9 +101,19 @@
             <!-- LOGGED IN AREA -->
             <div id="loggedInArea" hidden>
 
-                <div class="account-title">V-CLIENT ACCOUNT</div>
-                <div id="playerName"></div>
-                <div id="playerEmail"></div>
+                <div class="account-card">
+                    <div class="account-title">V-CLIENT ACCOUNT</div>
+                    <div id="playerName"></div>
+                    <div id="playerEmail"></div>
+                </div>
+
+                <div class="account-card velora-card">
+                    <div class="account-title velora-title">
+                        <span class="link-dot"></span>
+                        VÉLORA SERVERS · CONNECTED
+                    </div>
+                    <div id="veloraName"></div>
+                </div>
 
                 <button id="logoutButton" class="menu-button">
                     SIGN OUT
@@ -113,7 +135,7 @@
 
             <div class="client-note">
                 <span class="client-dot"></span>
-                <span>V-CLIENT ACCOUNT — your memories, stars, coins and leaderboard rank are saved to the V-Client cloud.</span>
+                <span>OFFICIAL SERVERS — game progress, cloud saves and the leaderboard run on the real VÉLORA servers.</span>
             </div>
 
             <div class="menu-footer">
@@ -125,9 +147,9 @@
         <!-- LEADERBOARD -->
         <section class="leaderboard">
 
-            <h2>V-CLIENT LEADERBOARD</h2>
+            <h2>GLOBAL LEADERBOARD</h2>
 
-            <p>THE EXPLORERS OF V-CLIENT</p>
+            <p>THE EXPLORERS OF VÉLORA</p>
 
             <div id="playersList">
                 <div class="leaderboard-loading">
@@ -139,14 +161,14 @@
 
         <!-- CLIENT FOOTER -->
         <section class="client-footer">
-            <h3>V-CLIENT 1.2.0</h3>
+            <h3>V-CLIENT 1.3.0</h3>
             <ul>
-                <li>Sign in with a V-Client account, powered by your own Firebase (kitacat-v-client)</li>
-                <li>Cloud saves, coins, stars, endless records and the full V-Client leaderboard</li>
-                <li>Live V-Client cloud status and ping in the client bar</li>
-                <li>ESC — save &amp; exit to menu at any time</li>
+                <li>Step 1 — V-Client account: Google sign-in on V-Client's own Firebase (kitacat-v-client)</li>
+                <li>Step 2 — VÉLORA login through VÉLORA itself (velora-5246f): same account as the original game</li>
+                <li>Cloud saves, coins, stars, endless records and the global leaderboard sync with VÉLORA</li>
+                <li>Live VÉLORA server status and ping in the client bar · ESC — save &amp; exit to menu</li>
             </ul>
-            <p class="client-footer-note">V-CLIENT ACCOUNTS ARE SEPARATE FROM THE ORIGINAL VÉLORA GAME · V-CLIENT IS A COMMUNITY CLIENT, ALL GAME SYSTEMS AND CONTENT BELONG TO VÉLORA</p>
+            <p class="client-footer-note">V-CLIENT IS A COMMUNITY CLIENT · ALL GAME SYSTEMS AND CONTENT BELONG TO VÉLORA</p>
         </section>
 
     </div>
