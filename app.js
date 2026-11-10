@@ -2880,24 +2880,29 @@ function stopLoop() {
     frameId = null;
 }
 
+// IMPORTANT: one tick function per loop, re-registered as-is every
+// frame. Mods that wrap requestAnimationFrame (VeloraHack) de-duplicate
+// callbacks by identity — a fresh closure every frame defeated that and
+// multiplied the loop each frame.
 function startLoop() {
     const token = ++loopToken;
-    frameId = requestAnimationFrame(ts => gameLoop(ts, token));
-}
 
-function gameLoop(timestamp, token) {
-    if (token !== loopToken || !gameStarted) return;
+    const tick = timestamp => {
+        if (token !== loopToken || !gameStarted) return;
 
-    const dt = clamp((timestamp - lastTime) / 1000, 0, 0.04);
+        const dt = clamp((timestamp - lastTime) / 1000, 0, 0.04);
 
-    lastTime = timestamp;
+        lastTime = timestamp;
 
-    update(dt);
-    render();
+        update(dt);
+        render();
 
-    if (gameStarted && token === loopToken) {
-        frameId = requestAnimationFrame(ts => gameLoop(ts, token));
-    }
+        if (gameStarted && token === loopToken) {
+            frameId = requestAnimationFrame(tick);
+        }
+    };
+
+    frameId = requestAnimationFrame(tick);
 }
 
 // ==========================================
