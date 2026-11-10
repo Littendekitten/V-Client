@@ -5,6 +5,9 @@
 // STEP 2: VÉLORA login through VÉLORA itself
 //         (velora-5246f) — game data lives on the
 //         official VÉLORA servers.
+// MODS:   (NAME).vclient files — uploaded,
+//         stored and synced per-user in the
+//         V-Client cloud Firestore.
 // ==========================================
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
@@ -26,6 +29,7 @@ import {
     getDocs,
     setDoc,
     updateDoc,
+    deleteDoc,
     increment,
     collection,
     query,
@@ -40,12 +44,10 @@ import {
 // ==========================================
 // FIREBASE — TWO APPS
 // 1) firebaseApp → VÉLORA (velora-5246f)
-//    ALL game data: saves, coins, leaderboard.
 // 2) clientApp   → V-Client (kitacat-v-client)
-//    The V-Client account system.
+//    The V-Client account system + cloud mods.
 // ==========================================
 
-// OFFICIAL VÉLORA SERVERS
 const veloraConfig = {
     apiKey: "AIzaSyC8PkUPS4X9d4VLyHGnkK8WW4MUDcdus6A",
     authDomain: "velora-5246f.firebaseapp.com",
@@ -57,7 +59,6 @@ const veloraConfig = {
     measurementId: "G-4855RPPXEF"
 };
 
-// V-CLIENT ACCOUNTS
 const clientConfig = {
     apiKey: "AIzaSyDpQBKWV3chhR1iU1ZVeYrlVLR_dWeK1T0",
     authDomain: "kitacat-v-client.firebaseapp.com",
@@ -71,13 +72,12 @@ const clientConfig = {
 const firebaseApp = initializeApp(veloraConfig);
 const clientApp = initializeApp(clientConfig, "vclient-auth");
 
-const auth = getAuth(firebaseApp);          // VÉLORA auth (the game account)
-const clientAuth = getAuth(clientApp);     // V-Client auth (the client account)
+const auth = getAuth(firebaseApp);
+const clientAuth = getAuth(clientApp);
 
-const db = getFirestore(firebaseApp);      // VÉLORA Firestore (game data)
-const clientDb = getFirestore(clientApp);   // V-Client Firestore (accounts)
+const db = getFirestore(firebaseApp);
+const clientDb = getFirestore(clientApp);
 
-// Providers
 const clientProvider = new GoogleAuthProvider();
 clientProvider.setCustomParameters({ prompt: "select_account" });
 
@@ -141,6 +141,12 @@ const connectStatusText = document.getElementById("connectStatus");
 const retryButton = document.getElementById("retryButton");
 const continueButton = document.getElementById("continueButton");
 
+// MMOD elements
+const modsSection = document.getElementById("modsSection");
+const modsListEl = document.getElementById("modsList");
+const modsStatusEl = document.getElementById("modsStatus");
+const modUploadInput = document.getElementById("modUpload");
+
 function setVisible(element, visible) {
     if (element) element.hidden = !visible;
 }
@@ -149,9 +155,9 @@ function setVisible(element, visible) {
 // V-CLIENT: VÉLORA SERVER CONNECTION + STATUS
 // ==========================================
 
-const CLIENT_VERSION = "1.3.0";
+const CLIENT_VERSION = "1.4.0";
 
-let clientReady = false;     // first successful server check done
+let clientReady = false;
 let clientOnline = false;
 
 function withTimeout(promise, ms) {
@@ -214,8 +220,6 @@ async function connectToVelora() {
     const started = performance.now();
 
     try {
-        // Public read on /users is allowed by the VÉLORA rules:
-        // this is our handshake with the official game servers.
         await withTimeout(
             getDocs(query(collection(db, "users"), limit(1))),
             10000
@@ -286,7 +290,6 @@ continueButton?.addEventListener("click", () => {
     setVisible(connectOverlay, false);
 });
 
-// Keep the ping fresh while the client bar is visible
 setInterval(() => {
     if (document.hidden || !clientBar || clientBar.classList.contains("client-hidden")) {
         return;
@@ -295,7 +298,6 @@ setInterval(() => {
     connectToVelora();
 }, 30000);
 
-// Refresh explorer count now and then
 setInterval(() => {
     if (document.hidden || !clientOnline) return;
 
@@ -364,7 +366,6 @@ let levelElapsed = 0;
 let levelStartTime = 0;
 let finishingLevel = false;
 
-// ENDLESS MODE: zones keep coming, each harder than the last.
 let endless = false;
 let endlessZone = 1;
 let endlessTotal = 0;
@@ -642,9 +643,9 @@ newGameButton?.after(endlessButton, endlessBestLabel);
 // ACCOUNTS
 // ==========================================
 
-let vclientUser = null;   // V-Client account (kitacat-v-client)
-let currentUser = null;  // VÉLORA account (velora-5246f) — the game account
-let playerUID = null;     // VÉLORA uid
+let vclientUser = null;
+let currentUser = null;
+let playerUID = null;
 let playersUnsubscribe = null;
 
 let gameStarted = false;
@@ -681,7 +682,7 @@ function resetAuthButtons() {
 }
 
 // ==========================================
-// STEP 1 — V-CLIENT LOGIN (via V-Client)
+// STEP 1 — V-CLIENT LOGIN
 // ==========================================
 
 async function loginVClient() {
@@ -714,10 +715,7 @@ async function loginVClient() {
 }
 
 // ==========================================
-// STEP 2 — VÉLORA LOGIN (via VÉLORA itself)
-// This is a real VÉLORA Google login through
-// the velora-5246f project. Game data (saves,
-// coins, leaderboard) is tied to this account.
+// STEP 2 — VÉLORA LOGIN
 // ==========================================
 
 async function loginVelora() {
@@ -753,9 +751,7 @@ vclientButton?.addEventListener("click", loginVClient);
 veloraButton?.addEventListener("click", loginVelora);
 
 // ==========================================
-// V-CLIENT ACCOUNT REGISTRATION (kitacat)
-// Stored in your own Firestore. Non-fatal if
-// the kitacat Firestore is not set up yet.
+// V-CLIENT ACCOUNT REGISTRATION
 // ==========================================
 
 async function registerVClientAccount() {
@@ -788,7 +784,7 @@ async function registerVClientAccount() {
 }
 
 // ==========================================
-// LOGOUT (signs out of BOTH accounts)
+// LOGOUT
 // ==========================================
 
 async function logout() {
@@ -826,15 +822,17 @@ function renderAuthState() {
     const hasVClient = !!vclientUser;
     const hasVelora = !!currentUser;
 
-    // Step buttons
     if (vclientButton) setVisible(vclientButton, !hasVClient);
     if (veloraButton) setVisible(veloraButton, hasVClient && !hasVelora);
 
-    // Panels
     if (loginArea) setVisible(loginArea, !hasVelora);
     if (loggedInArea) setVisible(loggedInArea, hasVelora);
 
-    // Step indicators
+    // Mods become available as soon as the V-Client account exists —
+    // uploading and configuring mods happens BEFORE connecting to the
+    // VÉLORA game servers.
+    if (modsSection) setVisible(modsSection, hasVClient);
+
     if (step1 && step2) {
         step1.classList.toggle("done", hasVClient);
         step1.classList.toggle("active", !hasVClient);
@@ -843,7 +841,6 @@ function renderAuthState() {
         step2.classList.toggle("active", hasVClient && !hasVelora);
     }
 
-    // V-Client account card
     if (hasVClient) {
         if (playerName) {
             playerName.textContent =
@@ -855,7 +852,6 @@ function renderAuthState() {
         }
     }
 
-    // VÉLORA account card
     if (hasVelora && currentUser) {
         if (veloraName) {
             veloraName.textContent =
@@ -865,7 +861,6 @@ function renderAuthState() {
         }
     }
 
-    // Main button
     if (startButton) {
         if (!hasVClient) {
             startButton.disabled = true;
@@ -885,7 +880,7 @@ function renderAuthState() {
 }
 
 // ==========================================
-// STEP 2 AUTH STATE — VÉLORA (drives the game)
+// STEP 2 AUTH STATE — VÉLORA
 // ==========================================
 
 onAuthStateChanged(auth, async user => {
@@ -927,7 +922,9 @@ onAuthStateChanged(auth, async user => {
 });
 
 // ==========================================
-// STEP 1 AUTH STATE — V-CLIENT ACCOUNT
+// STEP 1 AUTH STATE — V-CLIENT
+// Loads the user's cloud mods the moment the
+// V-Client account is available.
 // ==========================================
 
 onAuthStateChanged(clientAuth, async user => {
@@ -937,12 +934,14 @@ onAuthStateChanged(clientAuth, async user => {
 
     if (vclientUser) {
         registerVClientAccount();
+        loadMods(vclientUser);
 
-        // friendlier nudge
         if (!currentUser && loginStatus) {
             loginStatus.textContent =
                 "V-Client account ready — now connect to VÉLORA.";
         }
+    } else {
+        unloadMods();
     }
 });
 
@@ -1003,7 +1002,7 @@ async function savePublicProfile(user) {
 }
 
 // ==========================================
-// LEADERBOARD (official VÉLORA leaderboard)
+// LEADERBOARD
 // ==========================================
 
 function listenToPlayers() {
@@ -1224,8 +1223,6 @@ resizeCanvas();
 
 // ==========================================
 // FIRESTORE SAVE SYSTEM (VÉLORA servers)
-// Same format as the original game, so saves
-// interop with the real VÉLORA game.
 // ==========================================
 
 function makeSaveData() {
@@ -1557,6 +1554,10 @@ async function startGame(newGame = false, asEndless = false) {
     if (newGameButton) newGameButton.disabled = true;
 
     try {
+        // Mods must be running (with hooks installed) BEFORE the world
+        // is generated, so their world-generation eavesdroppers work.
+        await waitModsReady();
+
         stopLoop();
         gameStarted = false;
         finishingLevel = false;
@@ -1586,7 +1587,6 @@ async function startGame(newGame = false, asEndless = false) {
             saved = result.data;
             loadFailed = result.failed;
 
-            // Only load a save belonging to the selected level.
             if (saved && Number(saved.level || 1) === currentLevel) {
                 applySavedPlayer(saved);
             } else {
@@ -1606,7 +1606,6 @@ async function startGame(newGame = false, asEndless = false) {
         setVisible(winScreen, false);
         setVisible(gameUI, true);
 
-        // V-CLIENT: hide the client bar during gameplay
         setClientChromeVisible(false);
 
         if (message) message.style.display = "none";
@@ -1690,7 +1689,6 @@ const GAME_KEYS = new Set([
 ]);
 
 window.addEventListener("keydown", event => {
-    // V-CLIENT: ESC saves and exits to the menu
     if (event.key === "Escape") {
         if (gameStarted) {
             event.preventDefault();
@@ -1825,7 +1823,6 @@ function updatePlayer(dt) {
         Math.min(WORLD_H - player.radius, player.y)
     );
 
-    // Walls and (on forest levels) trees are solid
     for (const wall of walls) pushOutRect(player, wall, player.radius);
 
     if (getLevelConfig().solidTrees) {
@@ -1842,7 +1839,6 @@ function updatePlayer(dt) {
         }
     }
 
-    // Toxic pools
     const standingIn = hazards.some(h => distance(player, h) < h.radius);
 
     if (standingIn) {
@@ -2681,7 +2677,6 @@ async function completeLevel() {
     } catch (error) {
         console.error("Level completion error:", error);
 
-        // The player can see that the reward could not be saved.
         showMessage("LEVEL FINISHED — SAVE ERROR");
         setTimeout(() => showMenu(), 1800);
     }
@@ -2785,7 +2780,6 @@ function showMenu() {
     setVisible(gameUI, false);
     setVisible(winScreen, false);
 
-    // V-CLIENT: bring the client bar back when in the menu
     setClientChromeVisible(true);
 
     updateLevelSelector();
@@ -2874,6 +2868,650 @@ function gameLoop(timestamp) {
 }
 
 // ==========================================
+// MOD SYSTEM — .VCLIENT CLOUD MODS
+//
+// A (NAME).vclient file is a JavaScript file
+// with a metadata header:
+//
+//     // @id my-mod
+//     // @name MY MOD
+//     // @version 1.0.0
+//     // @author You
+//     // @description What it does
+//     (function () { ... })();
+//
+// The code runs ONCE per session and receives a
+// "VClient" API object:
+//
+//   VClient.defineSettings(schema)  — describe the settings panel
+//   VClient.get(key)                — read a setting (live)
+//   VClient.set(key, value)        — write + persist a setting
+//   VClient.isActive()             — mod toggle state
+//   VClient.onSettingsChange(fn)   — live setting push
+//   VClient.onAction(name, fn)    — button handlers
+//   VClient.onDestroy(fn)          — cleanup when removed
+//   VClient.addCoins(n)            — VÉLORA coins through Firestore
+//   VClient.setCoins(n)
+//   VClient.getSave()              — current VÉLORA cloud save
+//   VClient.showMessage(text)
+// ==========================================
+
+const MOD_CODE_MAX = 900000; // stay under the 1 MB Firestore doc limit
+
+const modEntries = new Map(); // modId -> entry
+let modsUnsubscribe = null;
+let modsLoadedResolve = null;
+let modsLoaded = Promise.resolve(true);
+
+function waitModsReady() {
+    return Promise.race([
+        modsLoaded,
+        new Promise(resolve => setTimeout(resolve, 6000))
+    ]);
+}
+
+function setModsStatus(text, isError) {
+    if (!modsStatusEl) return;
+
+    modsStatusEl.textContent = text || "";
+    modsStatusEl.style.color = isError ? "#ff9c9c" : "#8fffd3";
+}
+
+function slugify(text) {
+    return String(text || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 40) || "mod";
+}
+
+function parseModMeta(code, fileName) {
+    const meta = {};
+    const lines = code.split(/\r?\n/).slice(0, 50);
+
+    for (const line of lines) {
+        const match = /^\s*\/\/\s*@(\w+)\s+(.+?)\s*$/.exec(line);
+        if (match) meta[match[1].toLowerCase()] = match[2];
+    }
+
+    if (!meta.name) {
+        meta.name = fileName.replace(/\.vclient$/i, "");
+    }
+
+    if (!meta.id) {
+        meta.id = slugify(meta.name);
+    }
+
+    return meta;
+}
+
+function sanitizeSettings(settings) {
+    const clean = {};
+
+    for (const key of Object.keys(settings || {})) {
+        const value = settings[key];
+        const type = typeof value;
+
+        if (type === "string" || type === "number" || type === "boolean") {
+            clean[key] = value;
+        }
+    }
+
+    return clean;
+}
+
+// -------- VÉLORA powers for mods (secure — -------
+// everything goes through this client's already
+// authenticated VÉLORA connection, owned by the
+// signed-in player).
+// ------------------------------------------------
+
+async function addCoinsToVelora(delta) {
+    const amount = Math.floor(Number(delta) || 0);
+
+    if (!playerUID) {
+        throw new Error("Connect to VÉLORA first.");
+    }
+
+    if (amount !== 0) {
+        await updateDoc(publicUserRef(playerUID), {
+            coins: increment(amount),
+            updatedAt: serverTimestamp()
+        });
+
+        coins = clamp(coins + amount, 0, 100000000);
+        updateHUD();
+    }
+
+    return coins;
+}
+
+async function setCoinsToVelora(total) {
+    const amount = clamp(Math.floor(Number(total) || 0), 0, 100000000);
+
+    if (!playerUID) {
+        throw new Error("Connect to VÉLORA first.");
+    }
+
+    await updateDoc(publicUserRef(playerUID), {
+        coins: amount,
+        updatedAt: serverTimestamp()
+    });
+
+    coins = amount;
+    updateHUD();
+
+    return coins;
+}
+
+async function getVeloraSave() {
+    if (!playerUID) return null;
+
+    try {
+        const snapshot = await getDoc(publicUserRef(playerUID));
+        const data = snapshot.data();
+        return data ? data.save || null : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+// -------- mod runtime --------
+
+function notifyMod(entry) {
+    if (!entry.listeners.length) return;
+
+    const snapshot = {};
+    for (const item of entry.schema) {
+        const value = entry.settings[item.key];
+        snapshot[item.key] = value !== undefined ? value : item.default;
+    }
+
+    for (const fn of entry.listeners) {
+        try { fn(snapshot); } catch (error) {
+            console.error("Mod listener '" + entry.id + "' error:", error);
+        }
+    }
+}
+
+function persistModDoc(entry) {
+    clearTimeout(entry.persistTimer);
+
+    entry.persistTimer = setTimeout(async () => {
+        if (!vclientUser) return;
+
+        try {
+            await updateDoc(
+                doc(clientDb, "users", vclientUser.uid, "mods", entry.id),
+                {
+                    settings: sanitizeSettings(entry.settings),
+                    enabled: !!entry.enabled
+                }
+            );
+        } catch (error) {
+            console.warn("Mod settings sync error:", error);
+        }
+    }, 350);
+}
+
+function modDocRef(modId) {
+    return doc(clientDb, "users", vclientUser.uid, "mods", modId);
+}
+
+function runModCode(entry) {
+    // The API handed to the mod: a small, explicit surface.
+    const api = {
+        clientVersion: CLIENT_VERSION,
+
+        manifest: {
+            id: entry.id,
+            name: entry.name,
+            version: entry.version,
+            author: entry.author,
+            description: entry.description
+        },
+
+        isActive: () => entry.enabled,
+
+        defineSettings(schema) {
+            if (!Array.isArray(schema)) return;
+
+            entry.schema = schema;
+
+            for (const item of schema) {
+                if (item && item.key && !(item.key in entry.settings)) {
+                    entry.settings[item.key] = item.default;
+                }
+            }
+
+            renderMods();
+        },
+
+        get(key) {
+            if (key in entry.settings) return entry.settings[key];
+
+            const item = entry.schema.find(s => s && s.key === key);
+            return item ? item.default : undefined;
+        },
+
+        set(key, value) {
+            entry.settings[key] = value;
+            persistModDoc(entry);
+            notifyMod(entry);
+        },
+
+        onSettingsChange(fn) {
+            if (typeof fn === "function") entry.listeners.push(fn);
+        },
+
+        onAction(name, fn) {
+            entry.actions[name] = fn;
+        },
+
+        onDestroy(fn) {
+            if (typeof fn === "function") entry.destroyers.push(fn);
+        },
+
+        addCoins(delta) { return addCoinsToVelora(delta); },
+        setCoins(total) { return setCoinsToVelora(total); },
+        getSave() { return getVeloraSave(); },
+
+        showMessage(text) {
+            showMessage(String(text).slice(0, 90));
+        }
+    };
+
+    entry.api = api;
+
+    try {
+        // Mods run in the page world, once per session.
+        // A crashing mod can never take the client down.
+        new Function("VClient", entry.code)(api);
+    } catch (error) {
+        console.error("Mod '" + entry.id + "' crashed on load:", error);
+        setModsStatus("Mod '" + entry.name + "' crashed on load.", true);
+    }
+}
+
+function upsertModEntry(snapshotDoc) {
+    const data = snapshotDoc.data() || {};
+    const id = snapshotDoc.id;
+
+    let entry = modEntries.get(id);
+
+    if (!entry) {
+        entry = {
+            id,
+            name: data.name || id,
+            version: data.version || "1.0.0",
+            author: data.author || "",
+            description: data.description || "",
+            code: data.code || "",
+            enabled: !!data.enabled,
+            settings: Object.assign({}, data.settings),
+            schema: [],
+            actions: {},
+            listeners: [],
+            destroyers: [],
+            persistTimer: null,
+            api: null
+        };
+
+        modEntries.set(id, entry);
+
+        // First time this session — run the mod code.
+        runModCode(entry);
+    } else {
+        // Live sync (another device changed settings/enabled).
+        entry.enabled = !!data.enabled;
+
+        const incoming = data.settings || {};
+        let changed = false;
+
+        for (const key of Object.keys(incoming)) {
+            if (entry.settings[key] !== incoming[key]) {
+                entry.settings[key] = incoming[key];
+                changed = true;
+            }
+        }
+
+        if (changed) notifyMod(entry);
+    }
+}
+
+function removeModEntry(id, deleteDocToo) {
+    const entry = modEntries.get(id);
+    if (!entry) return;
+
+    clearTimeout(entry.persistTimer);
+
+    for (const fn of entry.destroyers) {
+        try { fn(); } catch (error) {
+            console.error("Mod '" + id + "' cleanup error:", error);
+        }
+    }
+
+    modEntries.delete(id);
+
+    if (deleteDocToo && vclientUser) {
+        deleteDoc(modDocRef(id)).catch(error => {
+            console.warn("Mod delete error:", error);
+            setModsStatus("Could not delete mod: " + error.message, true);
+        });
+    }
+}
+
+function unloadMods() {
+    if (modsUnsubscribe) {
+        modsUnsubscribe();
+        modsUnsubscribe = null;
+    }
+
+    for (const id of Array.from(modEntries.keys())) {
+        removeModEntry(id, false);
+    }
+
+    renderMods();
+}
+
+function loadMods(user) {
+    unloadMods();
+
+    let settled = false;
+    const markLoaded = () => {
+        if (!settled) {
+            settled = true;
+            if (modsLoadedResolve) modsLoadedResolve(true);
+        }
+    };
+
+    modsLoaded = new Promise(resolve => {
+        modsLoadedResolve = resolve;
+    });
+
+    // Safety net — never block the game more than 6s.
+    setTimeout(markLoaded, 6000);
+
+    try {
+        modsUnsubscribe = onSnapshot(
+            collection(clientDb, "users", user.uid, "mods"),
+            snapshot => {
+                snapshot.docChanges().forEach(change => {
+                    if (change.type === "removed") {
+                        removeModEntry(change.doc.id, false);
+                    } else {
+                        upsertModEntry(change.doc);
+                    }
+                });
+
+                renderMods();
+                markLoaded();
+            },
+            error => {
+                console.warn("Mods cloud sync error:", error);
+                setModsStatus("Mods cloud sync failed: " + error.message, true);
+                markLoaded();
+            }
+        );
+    } catch (error) {
+        console.warn("Mods load error:", error);
+        markLoaded();
+    }
+}
+
+// -------- mods UI --------
+
+function renderMods() {
+    if (!modsListEl) return;
+
+    modsListEl.innerHTML = "";
+
+    if (!modEntries.size) {
+        const empty = document.createElement("div");
+        empty.className = "mods-empty";
+        empty.textContent =
+            "NO MODS UPLOADED YET — CREATE A (NAME).vclient FILE AND UPLOAD IT. " +
+            "UPLOADS ARE STORED IN YOUR V-CLIENT CLOUD.";
+        modsListEl.appendChild(empty);
+        return;
+    }
+
+    modEntries.forEach(entry => {
+        const row = document.createElement("div");
+        row.className = "mod-row" + (entry.enabled ? " enabled" : "");
+
+        // ---- header ----
+        const head = document.createElement("div");
+        head.className = "mod-head";
+
+        const headLeft = document.createElement("div");
+        headLeft.className = "mod-id";
+
+        const toggle = document.createElement("input");
+        toggle.type = "checkbox";
+        toggle.checked = !!entry.enabled;
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "mod-name";
+        nameSpan.textContent = entry.name;
+
+        const versionSpan = document.createElement("span");
+        versionSpan.className = "mod-version";
+        versionSpan.textContent = "v" + entry.version;
+
+        headLeft.append(toggle, nameSpan, versionSpan);
+
+        const del = document.createElement("button");
+        del.className = "mod-delete";
+        del.type = "button";
+        del.textContent = "✕";
+        del.title = "Delete this mod from your V-Client cloud";
+
+        head.append(headLeft, del);
+
+        // ---- description ----
+        const desc = document.createElement("div");
+        desc.className = "mod-desc";
+        desc.textContent =
+            (entry.description || "") +
+            (entry.author ? " — by " + entry.author : "");
+
+        // ---- settings ----
+        const settingsBox = document.createElement("div");
+        settingsBox.className = "mod-settings";
+
+        for (const item of entry.schema) {
+            if (!item || !item.key) continue;
+
+            if (item.type === "action") {
+                const btn = document.createElement("button");
+                btn.className = "menu-button mod-action-btn";
+                btn.type = "button";
+                btn.textContent = item.label || item.key;
+
+                btn.addEventListener("click", () => {
+                    const fn = entry.actions[item.action];
+                    if (typeof fn !== "function") return;
+
+                    try {
+                        const result = fn();
+
+                        if (result && typeof result.catch === "function") {
+                            result.catch(error =>
+                                setModsStatus(
+                                    String(error.message || error), true
+                                )
+                            );
+                        }
+                    } catch (error) {
+                        setModsStatus(String(error.message || error), true);
+                    }
+                });
+
+                settingsBox.appendChild(btn);
+                continue;
+            }
+
+            const wrap = document.createElement("label");
+            wrap.className = "mod-setting";
+
+            let control;
+
+            if (item.type === "toggle") {
+                control = document.createElement("input");
+                control.type = "checkbox";
+                control.checked = !!entry.settings[item.key];
+
+                control.addEventListener("change", () => {
+                    entry.settings[item.key] = control.checked;
+                    persistModDoc(entry);
+                    notifyMod(entry);
+                });
+
+            } else if (item.type === "select") {
+                control = document.createElement("select");
+
+                for (const option of item.options || []) {
+                    const opt = document.createElement("option");
+                    opt.value = option;
+                    opt.textContent = String(option).toUpperCase();
+                    control.appendChild(opt);
+                }
+
+                control.value = entry.settings[item.key] ?? item.default;
+
+                control.addEventListener("change", () => {
+                    entry.settings[item.key] = control.value;
+                    persistModDoc(entry);
+                    notifyMod(entry);
+                });
+
+            } else {
+                // number (default)
+                control = document.createElement("input");
+                control.type = "number";
+                control.min = item.min;
+                control.max = item.max;
+                control.step = item.step || 1;
+                control.value = entry.settings[item.key] ?? item.default;
+
+                control.addEventListener("change", () => {
+                    let value = Number(control.value);
+
+                    if (!Number.isFinite(value)) value = item.default;
+                    if (item.min !== undefined) value = Math.max(item.min, value);
+                    if (item.max !== undefined) value = Math.min(item.max, value);
+
+                    control.value = value;
+                    entry.settings[item.key] = value;
+                    persistModDoc(entry);
+                    notifyMod(entry);
+                });
+            }
+
+            const label = document.createElement("span");
+            label.textContent = item.label || item.key;
+
+            wrap.append(label, control);
+            settingsBox.appendChild(wrap);
+        }
+
+        if (entry.schema.length) {
+            row.append(head, desc, settingsBox);
+        } else {
+            row.append(head, desc);
+        }
+
+        // ---- events ----
+        toggle.addEventListener("change", () => {
+            entry.enabled = toggle.checked;
+            row.classList.toggle("enabled", entry.enabled);
+
+            persistModDoc(entry);
+            notifyMod(entry);
+        });
+
+        del.addEventListener("click", () => {
+            if (confirm('Delete "' + entry.name + '" from your V-Client cloud?')) {
+                removeModEntry(entry.id, true);
+                renderMods();
+                setModsStatus('Deleted "' + entry.name + '".', false);
+            }
+        });
+
+        modsListEl.appendChild(row);
+    });
+}
+
+// -------- upload --------
+
+async function uploadModFile(file) {
+    if (!vclientUser) {
+        setModsStatus("Sign in with V-Client first.", true);
+        return;
+    }
+
+    if (!/\.vclient$/i.test(file.name)) {
+        setModsStatus('"' + file.name + '" is not a .vclient file.', true);
+        return;
+    }
+
+    if (file.size > MOD_CODE_MAX) {
+        setModsStatus("Mod files must be under 900 KB.", true);
+        return;
+    }
+
+    let text;
+
+    try {
+        text = await file.text();
+    } catch (error) {
+        setModsStatus("Could not read the file.", true);
+        return;
+    }
+
+    if (!text.trim()) {
+        setModsStatus("The mod file is empty.", true);
+        return;
+    }
+
+    const meta = parseModMeta(text, file.name);
+
+    const data = {
+        name: meta.name,
+        version: meta.version || "1.0.0",
+        author: meta.author || "",
+        description: meta.description || "",
+        code: text,
+        enabled: true,
+        settings: {},
+        uploadedAt: serverTimestamp()
+    };
+
+    setModsStatus("Uploading '" + meta.name + "'...", false);
+
+    try {
+        await setDoc(modDocRef(meta.id), data);
+        setModsStatus(
+            'Uploaded "' + meta.name + '" — stored in your V-Client cloud.', false
+        );
+    } catch (error) {
+        setModsStatus("Upload failed: " + error.message, true);
+    }
+}
+
+modUploadInput?.addEventListener("change", async () => {
+    const files = Array.from(modUploadInput.files || []);
+    modUploadInput.value = "";
+
+    if (!files.length) return;
+
+    for (const file of files) {
+        await uploadModFile(file);
+    }
+});
+
+// ==========================================
 // INITIAL STATE
 // ==========================================
 
@@ -2886,10 +3524,10 @@ setVisible(winScreen, false);
 renderAuthState();
 updateHUD();
 
-// V-CLIENT: shake hands with the VÉLORA servers
 connectToVelora();
 
 console.log(
     "V-CLIENT v" + CLIENT_VERSION +
-    " — step 1: V-Client account (kitacat-v-client) · step 2: VÉLORA login via VÉLORA (velora-5246f)"
+    " — mods enabled · upload (NAME).vclient files in the menu · " +
+    "mods sync with your V-Client account"
 );
