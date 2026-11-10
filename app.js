@@ -371,6 +371,11 @@ const T = () => getLevelConfig().theme;
 
 let currentLevel = 1;
 let unlockedLevel = 1;
+
+// User-created VELORA BUILDER levels (stored in the V-Client mod settings).
+let customLevels = [];
+let customLevel = null;
+let customLevelButtons = [];
 let levelProgress = {};
 
 let levelElapsed = 0;
@@ -401,6 +406,7 @@ function refreshEndlessCfg() {
 
 function getLevelConfig() {
     if (endless && endlessCfg) return endlessCfg;
+    if (customLevel) return customLevel;
     return LEVELS[currentLevel - 1] || LEVELS[0];
 }
 
@@ -482,6 +488,7 @@ LEVELS.forEach(level => {
     button.addEventListener("click", () => {
         if (level.number > unlockedLevel) return;
 
+        customLevel = null;
         currentLevel = level.number;
         updateLevelSelector();
     });
@@ -489,6 +496,115 @@ LEVELS.forEach(level => {
     levelSelector.appendChild(button);
     levelButtons.push(button);
 });
+
+// Custom levels are inserted after the five built-in levels.
+const customLevelsContainer = document.createElement("div");
+customLevelsContainer.id = "customLevelButtons";
+customLevelsContainer.style.cssText = `
+    display:flex;flex-wrap:wrap;justify-content:center;gap:9px;
+    width:100%;max-width:620px;margin:0 auto 12px;
+`;
+levelSelector.appendChild(customLevelsContainer);
+
+function renderCustomLevelButtons() {
+    if (!customLevelsContainer) return;
+    customLevelsContainer.replaceChildren();
+    customLevelButtons = [];
+
+    customLevels.forEach((level, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "custom-level-button";
+        button.textContent = `✦ ${level.name || "CUSTOM LEVEL"}`;
+        button.title = `Play custom level: ${level.name || "Custom level"}`;
+        button.style.cssText = `
+            min-width:140px;padding:12px 15px;border:1px solid #d9a928;
+            border-radius:7px;background:linear-gradient(135deg,rgba(92,63,12,.95),rgba(42,31,9,.95));
+            color:#ffe28a;font-family:Orbitron,sans-serif;font-size:10px;
+            letter-spacing:1px;cursor:pointer;box-shadow:0 0 12px rgba(232,180,45,.18);
+            transition:.2s;
+        `;
+        button.addEventListener("mouseenter", () => {
+            button.style.background = "linear-gradient(135deg,#9a7118,#5a400d)";
+            button.style.boxShadow = "0 0 18px rgba(255,205,75,.45)";
+        });
+        button.addEventListener("mouseleave", () => {
+            button.style.background = "linear-gradient(135deg,rgba(92,63,12,.95),rgba(42,31,9,.95))";
+            button.style.boxShadow = "0 0 12px rgba(232,180,45,.18)";
+        });
+        button.addEventListener("click", async () => {
+            if (!currentUser || !vclientUser) return;
+            customLevel = normalizeBuilderLevel(level);
+            currentLevel = 1;
+            endless = false;
+            updateLevelSelector();
+            await startGame(true, false);
+        });
+        customLevelsContainer.appendChild(button);
+        customLevelButtons.push(button);
+    });
+}
+
+function normalizeBuilderLevel(source) {
+    const L = source && typeof source === "object" ? source : {};
+    const world = Math.max(1600, Math.min(3600, Number(L.world) || 2400));
+    const themeMap = {
+        awakening: { ground:"#2d4a38", grid:"rgba(180,220,170,0.08)", border:"#829b85", tree:"#2c5e3f", treeHi:"#44804f", wall:"#4a5a55", night:"#02050b" },
+        forest: { ground:"#1d3326", grid:"rgba(140,200,140,0.06)", border:"#5f8a63", tree:"#1a4a2c", treeHi:"#2a6b3e", wall:"#3d4a40", night:"#010806" },
+        ruins: { ground:"#26303f", grid:"rgba(150,180,230,0.09)", border:"#6c85b0", tree:"#2f4a52", treeHi:"#45707a", wall:"#6b7a99", night:"#02040b" },
+        shadows: { ground:"#2a2038", grid:"rgba(190,150,240,0.07)", border:"#8a6cb5", tree:"#3b2a55", treeHi:"#5a3f80", wall:"#55486e", night:"#05020a" },
+        ember: { ground:"#35201f", grid:"rgba(255,150,120,0.07)", border:"#b5654f", tree:"#5a2a26", treeHi:"#82403a", wall:"#6e4a44", night:"#080203" }
+    };
+    const theme = themeMap[L.theme] || themeMap.forest;
+    const point = (o, fallback) => ({
+        x: Math.max(0, Math.min(world, Number(o && o.x) || fallback.x)),
+        y: Math.max(0, Math.min(world, Number(o && o.y) || fallback.y))
+    });
+    const crystals = Array.isArray(L.crystals) ? L.crystals.slice(0,12).map(c => point(c,{x:world/2,y:world/2})) : [];
+    const enemies = Array.isArray(L.enemies) ? L.enemies.slice(0,40).map(e => point(e,{x:world/2,y:world/2})) : [];
+    const trees = Array.isArray(L.trees) ? L.trees.slice(0,600).map(t => ({...point(t,{x:world/2,y:world/2}),size:Math.max(8,Math.min(40,Number(t.s)||20))})) : [];
+    const walls = Array.isArray(L.walls) ? L.walls.slice(0,300).map(w => ({x:Math.max(0,Number(w.x)||0),y:Math.max(0,Number(w.y)||0),w:Math.max(10,Number(w.w)||30),h:Math.max(10,Number(w.h)||30)})) : [];
+    const hazards = Array.isArray(L.hazards) ? L.hazards.slice(0,150).map(h => ({...point(h,{x:world/2,y:world/2}),radius:Math.max(30,Math.min(160,Number(h.r)||70)),pulse:0})) : [];
+    return {
+        number: 1000 + customLevels.findIndex(x => x.name === L.name),
+        name: String(L.name || "CUSTOM LEVEL").slice(0,15),
+        world, crystals: crystals.length, enemies: enemies.length,
+        enemySpeed: Math.max(.4,Math.min(2.5,Number(L.enemySpeed)||1)),
+        light: Math.max(60,Math.min(260,Number(L.light)||140)),
+        cooldown: Math.max(1,Math.min(10,Number(L.cooldown)||4)),
+        trees: trees.length, solidTrees: !!L.solidTrees,
+        walls: walls.length, hazards: hazards.length, par:[120,180,260],
+        hint:"CUSTOM LEVEL — collect every memory and reach the portal.",
+        theme, customData:{start:point(L.start,{x:world/2,y:world/2}),portal:point(L.portal,{x:world-180,y:world-180}),crystals,enemies,trees,walls,hazards,night:L.night!==false}
+    };
+}
+
+// Read the same cloud setting that VELORA BUILDER writes through VClient.set().
+async function loadCustomLevels() {
+    if (!vclientUser) { customLevels = []; renderCustomLevelButtons(); return; }
+    try {
+        const ref = doc(clientDb, "users", vclientUser.uid, "mods", "velora-builder");
+        const snap = await getDoc(ref);
+        const settings = snap.exists() ? (snap.data().settings || {}) : {};
+        const raw = settings.levels;
+        const parsed = typeof raw === "string" ? JSON.parse(raw || "[]") : raw;
+        customLevels = Array.isArray(parsed) ? parsed.filter(x => x && typeof x === "object" && x.name) : [];
+    } catch (error) {
+        console.warn("Could not load VELORA Builder levels:", error);
+        customLevels = [];
+    }
+    renderCustomLevelButtons();
+}
+
+window.addEventListener("focus", () => {
+    if (vclientUser && !gameStarted) loadCustomLevels();
+});
+document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && vclientUser && !gameStarted) loadCustomLevels();
+});
+setInterval(() => {
+    if (vclientUser && !gameStarted && menu && !menu.hidden) loadCustomLevels();
+}, 15000);
 
 const endlessButton = document.createElement("button");
 endlessButton.type = "button";
@@ -522,6 +638,7 @@ if (startButton && menu) {
 }
 
 function updateLevelSelector() {
+    renderCustomLevelButtons();
     endlessButton.disabled = !currentUser;
     updateEndlessLabel();
 
@@ -800,7 +917,7 @@ async function registerVClientAccount() {
 
 async function logout() {
     try {
-        if (gameStarted) await saveGame();
+        if (gameStarted && !customLevel) await saveGame();
 
         stopLoop();
         gameStarted = false;
@@ -946,12 +1063,16 @@ onAuthStateChanged(clientAuth, async user => {
     if (vclientUser) {
         registerVClientAccount();
         loadMods(vclientUser);
+        await loadCustomLevels();
 
         if (!currentUser && loginStatus) {
             loginStatus.textContent =
                 "V-Client account ready — now connect to VÉLORA.";
         }
     } else {
+        customLevel = null;
+        customLevels = [];
+        renderCustomLevelButtons();
         unloadMods();
     }
 });
@@ -1194,8 +1315,8 @@ function applyLevelConfig() {
     PLAYER_LIGHT_RADIUS = c.light;
     WAVE_COOLDOWN = c.cooldown;
 
-    portal.x = WORLD_W - 180;
-    portal.y = WORLD_H - 180;
+    portal.x = customLevel && c.customData ? c.customData.portal.x : WORLD_W - 180;
+    portal.y = customLevel && c.customData ? c.customData.portal.y : WORLD_H - 180;
 }
 
 function distance(a, b) {
@@ -1408,6 +1529,22 @@ function generateWorld() {
     shockwaves = [];
     particles = [];
 
+    if (customLevel && cfg.customData) {
+        const data = cfg.customData;
+        trees = data.trees.map(t => ({ x:t.x, y:t.y, size:t.size }));
+        walls = data.walls.map(w => ({ ...w }));
+        hazards = data.hazards.map(h => ({ ...h, pulse:0 }));
+        crystals = data.crystals.map(c => ({ x:c.x, y:c.y, radius:11, collected:false, pulse:random(0,6) }));
+        enemies = data.enemies.map(e => ({
+            x:e.x, y:e.y, radius:15,
+            speed:(random(35,58)+3)*cfg.enemySpeed,
+            angle:random(0,Math.PI*2), alert:false, stunned:0,
+            changeDirection:random(1,3)
+        }));
+        crystalsCollected = 0;
+        return;
+    }
+
     // Fixed layout per level: same seed = same level every time.
     rng = mulberry32(cfg.number * 7919 + 13);
 
@@ -1583,8 +1720,9 @@ async function startGame(newGame = false, asEndless = false) {
 
         applyLevelConfig();
 
-        player.x = WORLD_W / 2;
-        player.y = WORLD_H / 2;
+        const customCfg = customLevel ? getLevelConfig().customData : null;
+        player.x = customCfg ? customCfg.start.x : WORLD_W / 2;
+        player.y = customCfg ? customCfg.start.y : WORLD_H / 2;
         player.health = 100;
         player.energy = 100;
         player.shockCooldown = 0;
@@ -1592,13 +1730,13 @@ async function startGame(newGame = false, asEndless = false) {
         crystalsCollected = 0;
         levelElapsed = 0;
 
-        portal.x = WORLD_W - 180;
-        portal.y = WORLD_H - 180;
+        portal.x = customCfg ? customCfg.portal.x : WORLD_W - 180;
+        portal.y = customCfg ? customCfg.portal.y : WORLD_H - 180;
 
         let saved = null;
         let loadFailed = false;
 
-        if (!newGame) {
+        if (!newGame && !customLevel) {
             const result = await loadGame();
 
             saved = result.data;
@@ -1652,7 +1790,7 @@ async function startGame(newGame = false, asEndless = false) {
                 : `LEVEL ${currentLevel} — ${getLevelConfig().name}`
         );
 
-        if (newGame) {
+        if (newGame && !customLevel) {
             await saveGame();
         } else if (loadFailed) {
             showMessage("SAVE COULD NOT LOAD");
@@ -1675,10 +1813,12 @@ async function startGame(newGame = false, asEndless = false) {
 // ==========================================
 
 startButton?.addEventListener("click", () => {
+    customLevel = null;
     startGame(false);
 });
 
 newGameButton?.addEventListener("click", async () => {
+    customLevel = null;
     if (!currentUser) {
         if (loginStatus) loginStatus.textContent = "Sign in first.";
         return;
@@ -1746,7 +1886,7 @@ async function exitToMenu() {
     keys = {};
 
     try {
-        if (!endless && playerUID) await saveGame();
+        if (!endless && !customLevel && playerUID) await saveGame();
     } catch (error) {}
 
     endless = false;
@@ -1974,7 +2114,7 @@ async function updateCrystals() {
             if (endless) endlessTotal++;
 
             try {
-                if (playerUID) {
+                if (!customLevel && playerUID) {
                     await updateDoc(publicUserRef(playerUID), {
                         coins: increment(endless ? 5 : 10),
                         updatedAt: serverTimestamp()
@@ -1988,9 +2128,9 @@ async function updateCrystals() {
                 }
 
                 updateHUD();
-                await saveGame();
+                if (!customLevel) await saveGame();
 
-                showMessage(endless ? "+5 COINS — MEMORY FOUND" : "+10 COINS — MEMORY FOUND");
+                showMessage(customLevel ? "MEMORY FOUND" : endless ? "+5 COINS — MEMORY FOUND" : "+10 COINS — MEMORY FOUND");
 
             } catch (error) {
                 console.error("Coin save error:", error);
@@ -2147,7 +2287,7 @@ function update(dt) {
 
     if (autosaveTimer >= 15) {
         autosaveTimer = 0;
-        saveGame();
+        if (!customLevel) saveGame();
     }
 
     if (player.health <= 0) {
@@ -2490,6 +2630,7 @@ function drawEnemies() {
 // ==========================================
 
 function drawNightEffect() {
+    if (customLevel && getLevelConfig().customData && !getLevelConfig().customData.night) return;
     const dark = darknessCtx;
 
     dark.clearRect(0, 0, darknessCanvas.width, darknessCanvas.height);
@@ -2675,6 +2816,14 @@ function updateHUD() {
 // ==========================================
 
 async function completeLevel() {
+    if (customLevel) {
+        const completedTime = levelElapsed;
+        const stars = starsForTime(completedTime);
+        const reward = 0;
+        showLevelResults(completedTime, stars, reward, completedTime, stars);
+        return;
+    }
+
     const completedTime = levelElapsed;
     const stars = starsForTime(completedTime);
     const reward = stars * 10;
@@ -2766,20 +2915,22 @@ function showLevelResults(time, stars, reward, bestTime, bestStars) {
 
     if (heading) {
         heading.textContent =
+            customLevel ? "CUSTOM LEVEL COMPLETED" :
             currentLevel === 5 ? "VÉLORA RESTORED" : "LEVEL COMPLETED";
     }
 
     if (paragraph) {
         paragraph.textContent =
-            currentLevel === 5
+            customLevel ? `${getLevelConfig().name} completed.`
+            : currentLevel === 5
                 ? "You have restored the memories of VÉLORA."
                 : `${getLevelConfig().name} completed.`;
     }
 
     nextLevelButton.style.display =
-        currentLevel < 5 ? "block" : "none";
+        !customLevel && currentLevel < 5 ? "block" : "none";
 
-    if (currentLevel < 5) {
+    if (!customLevel && currentLevel < 5) {
         nextLevelButton.textContent = `NEXT LEVEL — ${currentLevel + 1}`;
     }
 
@@ -2828,7 +2979,7 @@ function gameOver() {
     player.health = 100;
     player.energy = 100;
 
-    saveGame();
+    if (!customLevel) saveGame();
 
     showMessage("YOU WERE LOST IN THE DARK");
 
@@ -2845,6 +2996,7 @@ function gameOver() {
 
 function showMenu() {
     if (pendingRebuild && !gameStarted) rebuildMods();
+    if (vclientUser) loadCustomLevels();
 
     setVisible(menu, true);
     setVisible(gameUI, false);
@@ -2882,7 +3034,7 @@ window.addEventListener("beforeunload", () => {
 });
 
 document.addEventListener("visibilitychange", () => {
-    if (document.hidden && gameStarted) {
+    if (document.hidden && gameStarted && !customLevel) {
         saveGame();
     }
 });
