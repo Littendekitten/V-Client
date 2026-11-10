@@ -377,6 +377,41 @@ button:disabled {
     gap: 12px;
 }
 
+.auth-steps {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.auth-step {
+    padding: 6px 12px;
+    background: rgba(12, 23, 43, 0.7);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 2px;
+    transition: 0.25s ease;
+}
+
+.auth-step.active {
+    color: var(--blue-light);
+    border-color: rgba(110, 210, 255, 0.55);
+    box-shadow: var(--glow);
+}
+
+.auth-step.done {
+    color: var(--green);
+    border-color: rgba(88, 255, 168, 0.4);
+}
+
+.auth-arrow {
+    color: var(--muted);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+}
+
 .menu-message {
     min-height: 18px;
     color: #ff9c9c;
@@ -397,24 +432,65 @@ button:disabled {
     text-align: center;
 }
 
+.velora-button {
+    border-color: rgba(88, 255, 168, 0.45) !important;
+    background: rgba(14, 38, 26, 0.65) !important;
+}
+
+.velora-button:hover {
+    border-color: var(--green) !important;
+    box-shadow: 0 0 25px rgba(88, 255, 168, 0.25) !important;
+}
+
+/* LOGGED IN AREA */
+
 #loggedInArea {
     width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    padding: 16px;
+}
+
+.account-card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 14px 16px;
     background: rgba(12, 23, 43, 0.55);
     border: 1px solid var(--border);
     border-radius: 6px;
+}
+
+.velora-card {
+    background: rgba(10, 32, 22, 0.55);
+    border-color: rgba(88, 255, 168, 0.3);
 }
 
 .account-title {
     font-family: 'Orbitron', sans-serif;
     font-size: 9px;
     letter-spacing: 3px;
+    color: var(--blue-light);
+}
+
+.velora-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     color: var(--green);
-    text-shadow: 0 0 10px rgba(88, 255, 168, 0.5);
+    text-shadow: 0 0 10px rgba(88, 255, 168, 0.4);
+}
+
+.link-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 10px rgba(88, 255, 168, 0.9);
+    animation: dotPulse 1.6s ease-in-out infinite;
 }
 
 #playerName {
@@ -427,6 +503,13 @@ button:disabled {
 #playerEmail {
     color: var(--muted);
     font-size: 12px;
+}
+
+#veloraName {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: #b9e6c8;
 }
 
 /* BUTTONS */
@@ -704,7 +787,7 @@ button:disabled {
 }
 
 .client-footer ul {
-    max-width: 480px;
+    max-width: 520px;
     margin: 18px auto 0;
     padding: 0;
     list-style: none;
