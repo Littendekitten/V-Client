@@ -3581,7 +3581,17 @@ function renderMods() {
         del.textContent = "✕";
         del.title = "Delete this mod from your V-Client cloud";
 
-        head.append(headLeft, del);
+        const download = document.createElement("button");
+        download.className = "mod-download";
+        download.type = "button";
+        download.textContent = "⬇";
+        download.title = "Download this mod as a .vclient file";
+
+        const headRight = document.createElement("div");
+        headRight.className = "mod-actions";
+        headRight.append(download, del);
+
+        head.append(headLeft, headRight);
 
         // ---- description ----
         const desc = document.createElement("div");
@@ -3709,6 +3719,8 @@ function renderMods() {
             requestModRebuild();
         });
 
+        download.addEventListener("click", () => downloadMod(entry));
+
         del.addEventListener("click", () => {
             if (confirm('Delete "' + entry.name + '" from your V-Client cloud?')) {
                 removeModEntry(entry.id, true);
@@ -3719,6 +3731,27 @@ function renderMods() {
 
         modsListEl.appendChild(row);
     });
+}
+
+// -------- download --------
+
+function downloadMod(entry) {
+    try {
+        const blob = new Blob([entry.code || ""], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = (entry.id || "mod") + ".vclient";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setModsStatus('Downloaded "' + entry.name + '".', false);
+    } catch (error) {
+        setModsStatus("Download failed: " + error.message, true);
+    }
 }
 
 // -------- upload --------
