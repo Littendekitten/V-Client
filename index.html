@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#03040b">
-    <meta name="description" content="V-CLIENT — community client for VÉLORA. Connect to the official VÉLORA servers.">
+    <meta name="description" content="V-CLIENT — community client for VÉLORA. Sign in with your V-Client account and explore the world that listens.">
 
     <title>V-CLIENT — VÉLORA Game Client</title>
 
@@ -25,7 +25,7 @@
             <div class="client-logo">V</div>
             <div class="client-brand-text">
                 <span class="client-name">V-CLIENT</span>
-                <span class="client-sub">VÉLORA GAME CLIENT · v1.0.0</span>
+                <span class="client-sub">VÉLORA GAME CLIENT · v1.2.0</span>
             </div>
         </div>
 
@@ -33,7 +33,7 @@
             <div class="server-panel">
                 <span id="serverDot" class="status-dot connecting"></span>
                 <div class="server-text">
-                    <span class="server-label">VELORA-5246F · EU-WEST</span>
+                    <span class="server-label">V-CLIENT CLOUD · KITACAT</span>
                     <span id="serverStatus">CONNECTING</span>
                 </div>
                 <span id="serverPing" class="server-ping"></span>
@@ -51,7 +51,7 @@
         <div class="overlay-content">
             <h2>V-CLIENT</h2>
             <div class="connect-spinner"></div>
-            <p id="connectStatus">CONNECTING TO VELORA SERVERS...</p>
+            <p id="connectStatus">CONNECTING TO THE V-CLIENT CLOUD...</p>
             <button id="retryButton" class="menu-button" hidden>RETRY CONNECTION</button>
             <button id="continueButton" class="menu-button" hidden>CONTINUE ANYWAY</button>
         </div>
@@ -75,16 +75,21 @@
             <div id="loginArea" class="auth-area">
 
                 <button id="googleButton" class="menu-button">
-                    SIGN IN WITH GOOGLE
+                    SIGN IN WITH V-CLIENT
                 </button>
 
                 <div id="loginStatus" class="menu-message"></div>
+
+                <div class="auth-note">
+                    V-CLIENT ACCOUNT · POWERED BY GOOGLE SIGN-IN
+                </div>
 
             </div>
 
             <!-- LOGGED IN AREA -->
             <div id="loggedInArea" hidden>
 
+                <div class="account-title">V-CLIENT ACCOUNT</div>
                 <div id="playerName"></div>
                 <div id="playerEmail"></div>
 
@@ -108,7 +113,7 @@
 
             <div class="client-note">
                 <span class="client-dot"></span>
-                <span>OFFICIAL SERVERS — your memories, stars, coins and leaderboard rank sync live with VÉLORA.</span>
+                <span>V-CLIENT ACCOUNT — your memories, stars, coins and leaderboard rank are saved to the V-Client cloud.</span>
             </div>
 
             <div class="menu-footer">
@@ -120,9 +125,9 @@
         <!-- LEADERBOARD -->
         <section class="leaderboard">
 
-            <h2>GLOBAL LEADERBOARD</h2>
+            <h2>V-CLIENT LEADERBOARD</h2>
 
-            <p>THE EXPLORERS OF VÉLORA</p>
+            <p>THE EXPLORERS OF V-CLIENT</p>
 
             <div id="playersList">
                 <div class="leaderboard-loading">
@@ -134,14 +139,14 @@
 
         <!-- CLIENT FOOTER -->
         <section class="client-footer">
-            <h3>V-CLIENT 1.0.0</h3>
+            <h3>V-CLIENT 1.2.0</h3>
             <ul>
-                <li>Direct connection to the official VÉLORA servers (velora-5246f)</li>
-                <li>Google sign-in, cloud saves, leaderboard and endless mode</li>
-                <li>Live server status and ping in the client bar</li>
+                <li>Sign in with a V-Client account, powered by your own Firebase (kitacat-v-client)</li>
+                <li>Cloud saves, coins, stars, endless records and the full V-Client leaderboard</li>
+                <li>Live V-Client cloud status and ping in the client bar</li>
                 <li>ESC — save &amp; exit to menu at any time</li>
             </ul>
-            <p class="client-footer-note">V-CLIENT is a community client. All game systems and content belong to VÉLORA.</p>
+            <p class="client-footer-note">V-CLIENT ACCOUNTS ARE SEPARATE FROM THE ORIGINAL VÉLORA GAME · V-CLIENT IS A COMMUNITY CLIENT, ALL GAME SYSTEMS AND CONTENT BELONG TO VÉLORA</p>
         </section>
 
     </div>
