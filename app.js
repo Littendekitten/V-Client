@@ -1,9 +1,10 @@
 // ==========================================
 // V-CLIENT — CLIENT FOR VÉLORA
 // THE WORLD THAT LISTENS
-// V-CLIENT ACCOUNTS: everything (sign-in,
-// saves, coins, leaderboard) runs on YOUR
-// Firebase project "kitacat-v-client".
+// STEP 1: V-Client account (kitacat-v-client)
+// STEP 2: VÉLORA login through VÉLORA itself
+//         (velora-5246f) — game data lives on the
+//         official VÉLORA servers.
 // ==========================================
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
@@ -37,11 +38,27 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 // ==========================================
-// FIREBASE — V-CLIENT ACCOUNT SYSTEM
-// (kitacat-v-client, your own project)
+// FIREBASE — TWO APPS
+// 1) firebaseApp → VÉLORA (velora-5246f)
+//    ALL game data: saves, coins, leaderboard.
+// 2) clientApp   → V-Client (kitacat-v-client)
+//    The V-Client account system.
 // ==========================================
 
-const firebaseConfig = {
+// OFFICIAL VÉLORA SERVERS
+const veloraConfig = {
+    apiKey: "AIzaSyC8PkUPS4X9d4VLyHGnkK8WW4MUDcdus6A",
+    authDomain: "velora-5246f.firebaseapp.com",
+    databaseURL: "https://velora-5246f-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "velora-5246f",
+    storageBucket: "velora-5246f.firebasestorage.app",
+    messagingSenderId: "688498933492",
+    appId: "1:688498933492:web:b28f6aea2a6f5a9ff868a1",
+    measurementId: "G-4855RPPXEF"
+};
+
+// V-CLIENT ACCOUNTS
+const clientConfig = {
     apiKey: "AIzaSyDpQBKWV3chhR1iU1ZVeYrlVLR_dWeK1T0",
     authDomain: "kitacat-v-client.firebaseapp.com",
     projectId: "kitacat-v-client",
@@ -51,15 +68,24 @@ const firebaseConfig = {
     measurementId: "G-M1WRT7WKDQ"
 };
 
-const firebaseApp = initializeApp(firebaseConfig);
-const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
+const firebaseApp = initializeApp(veloraConfig);
+const clientApp = initializeApp(clientConfig, "vclient-auth");
 
-const provider = new GoogleAuthProvider();
+const auth = getAuth(firebaseApp);          // VÉLORA auth (the game account)
+const clientAuth = getAuth(clientApp);     // V-Client auth (the client account)
 
-provider.setCustomParameters({ prompt: "select_account" });
+const db = getFirestore(firebaseApp);      // VÉLORA Firestore (game data)
+const clientDb = getFirestore(clientApp);   // V-Client Firestore (accounts)
+
+// Providers
+const clientProvider = new GoogleAuthProvider();
+clientProvider.setCustomParameters({ prompt: "select_account" });
+
+const veloraProvider = new GoogleAuthProvider();
+veloraProvider.setCustomParameters({ prompt: "select_account" });
 
 setPersistence(auth, browserLocalPersistence).catch(console.error);
+setPersistence(clientAuth, browserLocalPersistence).catch(console.error);
 
 // ==========================================
 // HTML ELEMENTS
@@ -78,12 +104,16 @@ const startButton = document.getElementById("startButton");
 const newGameButton = document.getElementById("newGameButton");
 
 const loginArea = document.getElementById("loginArea");
-const googleButton = document.getElementById("googleButton");
+const vclientButton = document.getElementById("vclientButton");
+const veloraButton = document.getElementById("veloraButton");
 const loginStatus = document.getElementById("loginStatus");
+const step1 = document.getElementById("step1");
+const step2 = document.getElementById("step2");
 
 const loggedInArea = document.getElementById("loggedInArea");
 const playerName = document.getElementById("playerName");
 const playerEmail = document.getElementById("playerEmail");
+const veloraName = document.getElementById("veloraName");
 const logoutButton = document.getElementById("logoutButton");
 
 const playersList = document.getElementById("playersList");
@@ -116,12 +146,12 @@ function setVisible(element, visible) {
 }
 
 // ==========================================
-// V-CLIENT: CLOUD CONNECTION + STATUS
+// V-CLIENT: VÉLORA SERVER CONNECTION + STATUS
 // ==========================================
 
-const CLIENT_VERSION = "1.2.0";
+const CLIENT_VERSION = "1.3.0";
 
-let clientReady = false;     // first successful cloud check done
+let clientReady = false;     // first successful server check done
 let clientOnline = false;
 
 function withTimeout(promise, ms) {
@@ -176,7 +206,7 @@ function setServerStatus(state, ping) {
     }
 }
 
-async function checkVClientCloud() {
+async function connectToVelora() {
     if (!clientReady) {
         setServerStatus("connecting");
     }
@@ -184,8 +214,8 @@ async function checkVClientCloud() {
     const started = performance.now();
 
     try {
-        // Public read on /users is allowed by the V-Client rules:
-        // this is our handshake with the V-Client cloud.
+        // Public read on /users is allowed by the VÉLORA rules:
+        // this is our handshake with the official game servers.
         await withTimeout(
             getDocs(query(collection(db, "users"), limit(1))),
             10000
@@ -205,18 +235,18 @@ async function checkVClientCloud() {
 
             console.log(
                 "V-CLIENT v" + CLIENT_VERSION +
-                " — connected to the V-Client cloud (" + ping + " ms)"
+                " — connected to the official VÉLORA servers (" + ping + " ms)"
             );
         }
     } catch (error) {
-        console.error("V-CLIENT cloud connection error:", error);
+        console.error("V-CLIENT connection error:", error);
 
         setServerStatus("offline");
 
         if (!clientReady) {
             if (connectStatusText) {
                 connectStatusText.textContent =
-                    "COULD NOT REACH THE V-CLIENT CLOUD — CHECK YOUR CONNECTION";
+                    "COULD NOT REACH THE VÉLORA SERVERS — CHECK YOUR CONNECTION";
             }
 
             setVisible(retryButton, true);
@@ -245,10 +275,10 @@ retryButton?.addEventListener("click", () => {
     setVisible(continueButton, false);
 
     if (connectStatusText) {
-        connectStatusText.textContent = "CONNECTING TO THE V-CLIENT CLOUD...";
+        connectStatusText.textContent = "CONNECTING TO THE VÉLORA SERVERS...";
     }
 
-    checkVClientCloud();
+    connectToVelora();
 });
 
 continueButton?.addEventListener("click", () => {
@@ -262,7 +292,7 @@ setInterval(() => {
         return;
     }
 
-    checkVClientCloud();
+    connectToVelora();
 }, 30000);
 
 // Refresh explorer count now and then
@@ -609,11 +639,12 @@ nextLevelButton.addEventListener("click", () => {
 newGameButton?.after(endlessButton, endlessBestLabel);
 
 // ==========================================
-// ACCOUNT
+// ACCOUNTS
 // ==========================================
 
-let currentUser = null;
-let playerUID = null;
+let vclientUser = null;   // V-Client account (kitacat-v-client)
+let currentUser = null;  // VÉLORA account (velora-5246f) — the game account
+let playerUID = null;     // VÉLORA uid
 let playersUnsubscribe = null;
 
 let gameStarted = false;
@@ -624,39 +655,47 @@ let coins = 0;
 let keys = {};
 
 // ==========================================
-// V-CLIENT ACCOUNT — GOOGLE SIGN-IN
-// (runs entirely on kitacat-v-client)
+// LOGIN ERROR MESSAGES
 // ==========================================
-
-function resetGoogleButton() {
-    if (!googleButton) return;
-
-    googleButton.disabled = false;
-    googleButton.textContent = "SIGN IN WITH V-CLIENT";
-}
 
 const LOGIN_ERRORS = {
     "auth/popup-closed-by-user": "Sign-in was cancelled.",
     "auth/cancelled-popup-request": "Sign-in was cancelled.",
     "auth/popup-blocked": "Your browser blocked the sign-in popup.",
     "auth/network-request-failed": "Network error. Check your connection.",
-    "auth/unauthorized-domain": "This domain is not authorized in the V-Client Firebase settings.",
-    "auth/operation-not-allowed": "Google sign-in is not enabled for kitacat-v-client yet.",
+    "auth/operation-not-allowed": "Google sign-in is not enabled for this project.",
+    "auth/unauthorized-domain": "This domain is not authorized in Firebase.",
     "auth/invalid-credential": "The login credential was rejected. Try again."
 };
 
-async function loginWithGoogle() {
-    if (googleButton) {
-        googleButton.disabled = true;
-        googleButton.textContent = "CONNECTING...";
+function resetAuthButtons() {
+    if (vclientButton && !vclientUser) {
+        vclientButton.disabled = false;
+        vclientButton.textContent = "SIGN IN WITH V-CLIENT";
+    }
+
+    if (veloraButton && !currentUser) {
+        veloraButton.disabled = false;
+        veloraButton.textContent = "CONNECT TO VÉLORA";
+    }
+}
+
+// ==========================================
+// STEP 1 — V-CLIENT LOGIN (via V-Client)
+// ==========================================
+
+async function loginVClient() {
+    if (vclientButton) {
+        vclientButton.disabled = true;
+        vclientButton.textContent = "CONNECTING...";
     }
 
     if (loginStatus) {
-        loginStatus.textContent = "Opening V-Client sign-in...";
+        loginStatus.textContent = "Opening the V-Client login...";
     }
 
     try {
-        await signInWithPopup(auth, provider);
+        await signInWithPopup(clientAuth, clientProvider);
 
         if (loginStatus) loginStatus.textContent = "";
 
@@ -665,18 +704,91 @@ async function loginWithGoogle() {
 
         if (loginStatus) {
             loginStatus.textContent =
-                LOGIN_ERRORS[error.code] ||
-                `${error.code || "Error"}: ${error.message}`;
+                (LOGIN_ERRORS[error.code] ||
+                `${error.code || "Error"}: ${error.message}`) +
+                " (V-CLIENT)";
         }
 
-        resetGoogleButton();
+        resetAuthButtons();
     }
 }
 
-googleButton?.addEventListener("click", loginWithGoogle);
+// ==========================================
+// STEP 2 — VÉLORA LOGIN (via VÉLORA itself)
+// This is a real VÉLORA Google login through
+// the velora-5246f project. Game data (saves,
+// coins, leaderboard) is tied to this account.
+// ==========================================
+
+async function loginVelora() {
+    if (veloraButton) {
+        veloraButton.disabled = true;
+        veloraButton.textContent = "CONNECTING...";
+    }
+
+    if (loginStatus) {
+        loginStatus.textContent = "Opening the VÉLORA login...";
+    }
+
+    try {
+        await signInWithPopup(auth, veloraProvider);
+
+        if (loginStatus) loginStatus.textContent = "";
+
+    } catch (error) {
+        console.error("VÉLORA login error:", error);
+
+        if (loginStatus) {
+            loginStatus.textContent =
+                (LOGIN_ERRORS[error.code] ||
+                `${error.code || "Error"}: ${error.message}`) +
+                " (VÉLORA)";
+        }
+
+        resetAuthButtons();
+    }
+}
+
+vclientButton?.addEventListener("click", loginVClient);
+veloraButton?.addEventListener("click", loginVelora);
 
 // ==========================================
-// LOGOUT
+// V-CLIENT ACCOUNT REGISTRATION (kitacat)
+// Stored in your own Firestore. Non-fatal if
+// the kitacat Firestore is not set up yet.
+// ==========================================
+
+async function registerVClientAccount() {
+    if (!vclientUser) return;
+
+    try {
+        const ref = doc(clientDb, "users", vclientUser.uid);
+        const snapshot = await getDoc(ref);
+        const exists = snapshot.exists();
+
+        const accountData = {
+            displayName: vclientUser.displayName || "V-Client Explorer",
+            email: vclientUser.email || "",
+            photoURL: vclientUser.photoURL || "",
+            updatedAt: serverTimestamp()
+        };
+
+        if (!exists) {
+            accountData.createdAt = serverTimestamp();
+        }
+
+        await setDoc(ref, accountData, { merge: true });
+
+    } catch (error) {
+        console.warn(
+            "V-Client account registration skipped (kitacat Firestore not reachable):",
+            error
+        );
+    }
+}
+
+// ==========================================
+// LOGOUT (signs out of BOTH accounts)
 // ==========================================
 
 async function logout() {
@@ -688,6 +800,15 @@ async function logout() {
         keys = {};
 
         await signOut(auth);
+
+        try {
+            await signOut(clientAuth);
+        } catch (error) {
+            console.error("V-Client sign-out error:", error);
+        }
+
+        if (loginStatus) loginStatus.textContent = "";
+
         showMenu();
 
     } catch (error) {
@@ -698,7 +819,73 @@ async function logout() {
 logoutButton?.addEventListener("click", logout);
 
 // ==========================================
-// AUTH STATE — V-CLIENT ACCOUNT
+// AUTH UI STATE
+// ==========================================
+
+function renderAuthState() {
+    const hasVClient = !!vclientUser;
+    const hasVelora = !!currentUser;
+
+    // Step buttons
+    if (vclientButton) setVisible(vclientButton, !hasVClient);
+    if (veloraButton) setVisible(veloraButton, hasVClient && !hasVelora);
+
+    // Panels
+    if (loginArea) setVisible(loginArea, !hasVelora);
+    if (loggedInArea) setVisible(loggedInArea, hasVelora);
+
+    // Step indicators
+    if (step1 && step2) {
+        step1.classList.toggle("done", hasVClient);
+        step1.classList.toggle("active", !hasVClient);
+
+        step2.classList.toggle("done", hasVelora);
+        step2.classList.toggle("active", hasVClient && !hasVelora);
+    }
+
+    // V-Client account card
+    if (hasVClient) {
+        if (playerName) {
+            playerName.textContent =
+                vclientUser.displayName || "V-Client Explorer";
+        }
+
+        if (playerEmail) {
+            playerEmail.textContent = vclientUser.email || "";
+        }
+    }
+
+    // VÉLORA account card
+    if (hasVelora && currentUser) {
+        if (veloraName) {
+            veloraName.textContent =
+                currentUser.displayName ||
+                currentUser.email ||
+                "VÉLORA Player";
+        }
+    }
+
+    // Main button
+    if (startButton) {
+        if (!hasVClient) {
+            startButton.disabled = true;
+            startButton.textContent = "SIGN IN FIRST";
+        } else if (!hasVelora) {
+            startButton.disabled = true;
+            startButton.textContent = "CONNECT VÉLORA FIRST";
+        } else {
+            startButton.disabled = false;
+            startButton.textContent = "ENTER THE WORLD";
+        }
+    }
+
+    resetAuthButtons();
+
+    updateLevelSelector();
+}
+
+// ==========================================
+// STEP 2 AUTH STATE — VÉLORA (drives the game)
 // ==========================================
 
 onAuthStateChanged(auth, async user => {
@@ -706,29 +893,10 @@ onAuthStateChanged(auth, async user => {
         currentUser = user;
         playerUID = user.uid;
 
-        setVisible(loginArea, false);
-        setVisible(loggedInArea, true);
-        resetGoogleButton();
-
-        if (playerName) {
-            playerName.textContent = user.displayName || "V-Client Explorer";
-        }
-
-        if (playerEmail) {
-            playerEmail.textContent = user.email || "";
-        }
-
-        if (startButton) {
-            startButton.disabled = false;
-            startButton.textContent = "ENTER THE WORLD";
-        }
-
-        if (newGameButton) newGameButton.disabled = false;
-
         await savePublicProfile(user);
         listenToPlayers();
 
-        updateLevelSelector();
+        renderAuthState();
 
     } else {
         currentUser = null;
@@ -744,17 +912,6 @@ onAuthStateChanged(auth, async user => {
         gameStarted = false;
         keys = {};
 
-        setVisible(loginArea, true);
-        setVisible(loggedInArea, false);
-        resetGoogleButton();
-
-        if (startButton) {
-            startButton.disabled = true;
-            startButton.textContent = "SIGN IN FIRST";
-        }
-
-        if (newGameButton) newGameButton.disabled = true;
-
         if (playersList) {
             playersList.textContent = "Sign in to see the players.";
         }
@@ -765,12 +922,32 @@ onAuthStateChanged(auth, async user => {
         }
 
         showMenu();
-        updateLevelSelector();
+        renderAuthState();
     }
 });
 
 // ==========================================
-// FIRESTORE PLAYER PROFILE (V-Client cloud)
+// STEP 1 AUTH STATE — V-CLIENT ACCOUNT
+// ==========================================
+
+onAuthStateChanged(clientAuth, async user => {
+    vclientUser = user && !user.isAnonymous ? user : null;
+
+    renderAuthState();
+
+    if (vclientUser) {
+        registerVClientAccount();
+
+        // friendlier nudge
+        if (!currentUser && loginStatus) {
+            loginStatus.textContent =
+                "V-Client account ready — now connect to VÉLORA.";
+        }
+    }
+});
+
+// ==========================================
+// FIRESTORE PLAYER PROFILE (VÉLORA)
 // ==========================================
 
 function publicUserRef(uid) {
@@ -787,7 +964,7 @@ async function savePublicProfile(user) {
         const data = exists ? snapshot.data() : {};
 
         const profileData = {
-            displayName: user.displayName || "V-Client Explorer",
+            displayName: user.displayName || "VÉLORA Player",
             photoURL: user.photoURL || "",
             updatedAt: serverTimestamp()
         };
@@ -820,13 +997,13 @@ async function savePublicProfile(user) {
 
         if (loginStatus) {
             loginStatus.textContent =
-                "Could not load your V-Client account: " + error.message;
+                "Could not load your VÉLORA profile: " + error.message;
         }
     }
 }
 
 // ==========================================
-// LEADERBOARD
+// LEADERBOARD (official VÉLORA leaderboard)
 // ==========================================
 
 function listenToPlayers() {
@@ -872,7 +1049,7 @@ function listenToPlayers() {
 
                 const name = document.createElement("span");
                 name.className = "leaderboard-name";
-                name.textContent = data.displayName || "V-Client Explorer";
+                name.textContent = data.displayName || "VÉLORA Player";
 
                 const amount = document.createElement("span");
                 amount.className = "leaderboard-coins";
@@ -1046,7 +1223,9 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 // ==========================================
-// FIRESTORE SAVE SYSTEM (V-Client cloud)
+// FIRESTORE SAVE SYSTEM (VÉLORA servers)
+// Same format as the original game, so saves
+// interop with the real VÉLORA game.
 // ==========================================
 
 function makeSaveData() {
@@ -1089,7 +1268,7 @@ async function clearSave() {
     if (!playerUID || endless) return;
 
     try {
-        localStorage.removeItem("vclient_backup_" + playerUID);
+        localStorage.removeItem("velora_backup_" + playerUID);
     } catch (error) {}
 
     try {
@@ -1119,7 +1298,7 @@ async function clearSave() {
 function readBackup() {
     if (!playerUID) return null;
 
-    const key = "vclient_backup_" + playerUID;
+    const key = "velora_backup_" + playerUID;
 
     try {
         const raw = localStorage.getItem(key);
@@ -1353,11 +1532,11 @@ function generateWorld() {
 }
 
 // ==========================================
-// START GAME
+// START GAME (requires BOTH logins)
 // ==========================================
 
 async function startGame(newGame = false, asEndless = false) {
-    if (!currentUser || currentUser.isAnonymous || starting) return;
+    if (!vclientUser || !currentUser || currentUser.isAnonymous || starting) return;
 
     starting = true;
 
@@ -1469,13 +1648,8 @@ async function startGame(newGame = false, asEndless = false) {
     } finally {
         starting = false;
 
-        if (currentUser) {
-            if (startButton) {
-                startButton.disabled = false;
-                startButton.textContent = "ENTER THE WORLD";
-            }
-
-            if (newGameButton) newGameButton.disabled = false;
+        if (currentUser && vclientUser) {
+            renderAuthState();
         }
     }
 }
@@ -2635,7 +2809,7 @@ window.addEventListener("beforeunload", () => {
 
     try {
         localStorage.setItem(
-            "vclient_backup_" + playerUID,
+            "velora_backup_" + playerUID,
             JSON.stringify(makeSaveData())
         );
     } catch (error) {
@@ -2709,22 +2883,13 @@ setVisible(menu, true);
 setVisible(gameUI, false);
 setVisible(winScreen, false);
 
-if (startButton) {
-    startButton.disabled = true;
-    startButton.textContent = "SIGN IN FIRST";
-}
-
-if (newGameButton) {
-    newGameButton.disabled = true;
-}
-
-updateLevelSelector();
+renderAuthState();
 updateHUD();
 
-// V-CLIENT: shake hands with the V-Client cloud
-checkVClientCloud();
+// V-CLIENT: shake hands with the VÉLORA servers
+connectToVelora();
 
 console.log(
     "V-CLIENT v" + CLIENT_VERSION +
-    " — V-Client accounts on kitacat-v-client · game: VÉLORA"
+    " — step 1: V-Client account (kitacat-v-client) · step 2: VÉLORA login via VÉLORA (velora-5246f)"
 );
