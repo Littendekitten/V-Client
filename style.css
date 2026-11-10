@@ -442,6 +442,186 @@ button:disabled {
     box-shadow: 0 0 25px rgba(88, 255, 168, 0.25) !important;
 }
 
+/* ========================= */
+/* MODS                      */
+/* ========================= */
+
+.mods-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.mods-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.mods-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: #8fdfff;
+}
+
+.mods-hint {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    line-height: 1.8;
+    color: var(--muted);
+    text-align: center;
+    max-width: 420px;
+}
+
+.mods-upload {
+    text-align: center;
+}
+
+.mods-list {
+    width: 100%;
+    max-height: 340px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 2px;
+}
+
+.mods-empty {
+    padding: 14px;
+    text-align: center;
+    color: var(--muted);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    line-height: 1.9;
+    border: 1px dashed rgba(80, 180, 255, 0.25);
+    border-radius: 6px;
+}
+
+.mod-row {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px;
+    background: rgba(12, 23, 43, 0.75);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    text-align: left;
+    transition: border-color 0.25s ease;
+}
+
+.mod-row.enabled {
+    border-color: rgba(88, 255, 168, 0.4);
+}
+
+.mod-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.mod-id {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.mod-id input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #58ffa8;
+    cursor: pointer;
+}
+
+.mod-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: #bfeaff;
+}
+
+.mod-version {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    color: var(--muted);
+}
+
+.mod-delete {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    background: rgba(60, 15, 25, 0.6);
+    border: 1px solid rgba(255, 107, 125, 0.4);
+    border-radius: 4px;
+    color: #ffb3bd;
+    font-size: 10px;
+}
+
+.mod-delete:hover {
+    border-color: var(--red);
+    background: rgba(90, 20, 32, 0.7);
+}
+
+.mod-desc {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.mod-settings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.mod-setting {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    background: rgba(8, 16, 32, 0.8);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    color: #9fd4f5;
+}
+
+.mod-setting input[type="number"],
+.mod-setting select {
+    width: 84px;
+    padding: 4px 6px;
+    background: rgba(4, 10, 22, 0.9);
+    border: 1px solid rgba(80, 180, 255, 0.3);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    outline: none;
+}
+
+.mod-setting input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: #42c8ff;
+    cursor: pointer;
+}
+
+.mod-action-btn {
+    min-width: 0;
+    padding: 8px 14px;
+    font-size: 9px;
+}
+
 /* LOGGED IN AREA */
 
 #loggedInArea {
