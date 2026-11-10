@@ -1110,6 +1110,10 @@ let player = {
 
 let crystalsCollected = 0;
 
+// Set by mods through VClient.setPlayerSpeed(). Only the player moves
+// faster — enemies, the timer and everything else stay untouched.
+let playerSpeedMult = 1;
+
 let shockwaves = [];
 let particles = [];
 let enemies = [];
@@ -1794,6 +1798,34 @@ function useShockwave() {
 // PLAYER UPDATE
 // ==========================================
 
+function resolvePlayerCollisions() {
+    player.x = Math.max(
+        player.radius,
+        Math.min(WORLD_W - player.radius, player.x)
+    );
+
+    player.y = Math.max(
+        player.radius,
+        Math.min(WORLD_H - player.radius, player.y)
+    );
+
+    for (const wall of walls) pushOutRect(player, wall, player.radius);
+
+    if (getLevelConfig().solidTrees) {
+        for (const tree of trees) {
+            const minDist = tree.size * 0.5 + player.radius;
+            const tx = player.x - tree.x;
+            const ty = player.y - tree.y;
+            const d = Math.hypot(tx, ty);
+
+            if (d < minDist && d > 0) {
+                player.x = tree.x + (tx / d) * minDist;
+                player.y = tree.y + (ty / d) * minDist;
+            }
+        }
+    }
+}
+
 function updatePlayer(dt) {
     let dx = 0;
     let dy = 0;
@@ -1812,10 +1844,21 @@ function updatePlayer(dt) {
         dy /= length;
 
         const sprinting = keys["shift"] && player.energy > 0;
-        const speed = sprinting ? player.sprint : player.speed;
+        const speed =
+            (sprinting ? player.sprint : player.speed) * playerSpeedMult;
 
-        player.x += dx * speed * dt;
-        player.y += dy * speed * dt;
+        // Move in small steps (max 8px) so a high speed can't carry the
+        // player through a 30px wall.
+        const travel = speed * dt;
+        const moveSteps = Math.max(1, Math.ceil(travel / 8));
+        const stepLength = travel / moveSteps;
+
+        for (let i = 0; i < moveSteps; i++) {
+            player.x += dx * stepLength;
+            player.y += dy * stepLength;
+
+            if (moveSteps > 1) resolvePlayerCollisions();
+        }
 
         if (sprinting) {
             player.energy = Math.max(0, player.energy - 25 * dt);
@@ -3235,6 +3278,16 @@ function runModCode(entry) {
             if (typeof fn === "function") entry.destroyers.push(fn);
         },
 
+        // Player-only speed multiplier (1–10). The game clock, enemies and
+        // the saved time are not affected.
+        setPlayerSpeed(multiplier) {
+            if (run.dead) return;
+
+            const value = Number(multiplier);
+
+            playerSpeedMult = Number.isFinite(value) ? clamp(value, 1, 10) : 1;
+        },
+
         addCoins(delta) { alive(); return addCoinsToVelora(delta); },
         setCoins(total) { alive(); return setCoinsToVelora(total); },
         getSave() { alive(); return getVeloraSave(); },
@@ -3259,6 +3312,8 @@ function runModCode(entry) {
 // Stops one mod: runs its cleanup and cuts it off from the client.
 function teardownMod(entry) {
     if (entry.run) entry.run.dead = true;
+
+    playerSpeedMult = 1;
 
     const destroyers = entry.destroyers;
 
@@ -3286,6 +3341,7 @@ function rebuildMods() {
         for (const entry of modEntries.values()) teardownMod(entry);
 
         restoreGlobals();
+        playerSpeedMult = 1;
 
         const ordered = Array.from(modEntries.values())
             .sort((a, b) => (a.id < b.id ? -1 : 1));
@@ -3411,6 +3467,7 @@ function unloadMods() {
 
     modEntries.clear();
     restoreGlobals();
+    playerSpeedMult = 1;
     renderMods();
 }
 
