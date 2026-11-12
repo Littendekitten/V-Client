@@ -74,6 +74,25 @@ let effects = [];
 let particles = [];
 let damageFlash = 0;
 let screenShake = 0;
+let lastShakeAt = 0;
+
+// Screen shake is kept small and short so being hit by a swarm
+// never turns into constant shaking.
+const MAX_SHAKE = 5;
+const SHAKE_COOLDOWN_MS = 350;
+const SHAKE_DECAY_PER_SEC = 45;
+
+function addShake(amount, force = false) {
+    // Respect "reduce motion" accessibility setting.
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+    const now = performance.now();
+
+    if (!force && now - lastShakeAt < SHAKE_COOLDOWN_MS) return;
+
+    lastShakeAt = now;
+    screenShake = Math.min(MAX_SHAKE, Math.max(screenShake, amount));
+}
 let toastTimer = 0;
 let toastText = "";
 
@@ -849,7 +868,7 @@ function handleServerMessage(data) {
         case "player_hit":
             if (data.uid === signedInUser?.uid) {
                 damageFlash = 0.34;
-                screenShake = Math.max(screenShake, 9);
+                addShake(4);
             }
 
             addHitSparkForUid(data.uid);
@@ -907,6 +926,8 @@ function beginMission(data) {
 
     effects = [];
     particles = [];
+    screenShake = 0;
+    damageFlash = 0;
     renderPlayers.clear();
 
     syncRenderPlayers(data.players || []);
@@ -1162,7 +1183,8 @@ function updateEffects(dt) {
     particles = particles.filter(p => p.life > 0);
 
     damageFlash = Math.max(0, damageFlash - dt);
-    screenShake = Math.max(0, screenShake - dt * 28);
+    screenShake = Math.max(0, screenShake - dt * SHAKE_DECAY_PER_SEC);
+    if (screenShake < 0.25) screenShake = 0;
     toastTimer = Math.max(0, toastTimer - dt);
 
     const toast = stage?.querySelector("#mpToast");
@@ -1202,9 +1224,6 @@ function addAttackEffect(data) {
         });
     }
 
-    if (data.uid === signedInUser?.uid) {
-        screenShake = Math.max(screenShake, data.hit ? 3 : 1.2);
-    }
 }
 
 function addSpecialEffect(data) {
@@ -1237,7 +1256,7 @@ function addSpecialEffect(data) {
         });
     }
 
-    screenShake = Math.max(screenShake, 8);
+    addShake(3);
 }
 
 function addHitSparkForUid(uid) {
